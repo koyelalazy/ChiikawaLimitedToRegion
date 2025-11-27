@@ -69,7 +69,6 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        /* Modal 動畫 */
         .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
     </style>
@@ -94,8 +93,13 @@
                     </div>
                 </div>
                 
-                <div class="flex gap-2 self-end sm:self-auto items-center">
-                    
+                <div class="flex gap-2 self-end sm:self-auto items-center flex-wrap justify-end">
+                    <a href="https://www.jp-api.com/contents/NOD62/PGE1/" target="_blank" 
+					   class="px-3 py-1.5 rounded-full text-xs font-bold text-white bg-pink-400 hover:bg-pink-500 shadow transition-all flex items-center gap-1 no-underline" 
+					   title="前往官方網站">
+						<span>🌐</span> 官網
+					</a>
+					
                     <button @click="autoUpdate" :disabled="isUpdating" 
                         class="px-4 py-1.5 rounded-full text-xs font-bold text-white bg-chii-dark hover:bg-gray-700 shadow transition-all flex items-center gap-2">
                         <span v-if="!isUpdating">🔄 更新商品</span>
@@ -103,6 +107,20 @@
                             <div class="loader"></div> 爬取中...
                         </span>
                     </button>
+
+                    <button @click="fixRegions" :disabled="isUpdating"
+                        class="px-3 py-1.5 rounded-full text-xs font-bold text-white bg-blue-500 hover:bg-blue-600 shadow transition-all flex items-center gap-1" title="依照設定地點重新分類地區">
+                        <span>🌍</span> 更新地區
+                    </button>
+
+                    <button @click="exportData" class="px-3 py-1.5 rounded-full text-xs font-bold text-chii-dark bg-yellow-300 hover:bg-yellow-400 shadow transition-all flex items-center gap-1" title="下載資料">
+                        <span>📤</span> 匯出
+                    </button>
+
+                    <button @click="triggerImport" class="px-3 py-1.5 rounded-full text-xs font-bold text-white bg-green-500 hover:bg-green-600 shadow transition-all flex items-center gap-1" title="上傳資料">
+                        <span>📥</span> 匯入
+                    </button>
+                    <input type="file" id="importFile" @change="importData" class="hidden" accept=".json">
 
                     <div class="flex gap-1 bg-gray-100 p-1 rounded-full border border-gray-200">
                         <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'bg-white shadow text-chii-dark' : 'text-gray-400'" class="px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1">
@@ -115,17 +133,26 @@
                 </div>
             </div>
 
-            <div class="flex flex-col md:flex-row gap-3 md:items-center justify-between bg-chii-bg p-3 rounded-xl border border-pink-100">
-                <div class="flex gap-2 flex-shrink-0">
-                    <button v-for="cat in categories" :key="cat.key" 
-                        @click="selectedCategory = cat.key"
-                        :class="selectedCategory === cat.key ? 'bg-chii-dark text-white ring-2 ring-offset-2 ring-chii-dark' : 'bg-white text-gray-500 hover:bg-gray-50'"
-                        class="px-4 py-1.5 rounded-lg text-sm font-bold transition-all border border-gray-200 whitespace-nowrap">
-                        {{ cat.label }}
-                    </button>
+            <div class="flex flex-col gap-2 bg-chii-bg p-3 rounded-xl border border-pink-100">
+                
+                <div class="flex flex-wrap gap-2 justify-between">
+                    <div class="flex gap-2">
+                        <button v-for="cat in categories" :key="cat.key" 
+                            @click="selectedCategory = cat.key"
+                            :class="selectedCategory === cat.key ? 'bg-chii-dark text-white ring-2 ring-offset-2 ring-chii-dark' : 'bg-white text-gray-500 hover:bg-gray-50'"
+                            class="px-4 py-1.5 rounded-lg text-sm font-bold transition-all border border-gray-200 whitespace-nowrap">
+                            {{ cat.label }}
+                        </button>
+                    </div>
+
+                    <div class="flex gap-1 bg-white p-1 rounded-lg border border-gray-200">
+                        <button @click="statusFilter = 'all'" :class="statusFilter === 'all' ? 'bg-chii-pink text-white shadow' : 'text-gray-400'" class="px-3 py-1 rounded text-xs font-bold transition-all">全部</button>
+                        <button @click="statusFilter = 'owned'" :class="statusFilter === 'owned' ? 'bg-green-500 text-white shadow' : 'text-gray-400'" class="px-3 py-1 rounded text-xs font-bold transition-all">已擁有</button>
+                        <button @click="statusFilter = 'not_owned'" :class="statusFilter === 'not_owned' ? 'bg-gray-400 text-white shadow' : 'text-gray-400'" class="px-3 py-1 rounded text-xs font-bold transition-all">未擁有</button>
+                    </div>
                 </div>
 
-                <div id="region-scroll-area" class="region-scroll-container flex items-center gap-2 pb-2 md:pb-2 w-full md:w-auto">
+                <div id="region-scroll-area" class="region-scroll-container flex items-center gap-2 w-full">
                     <button 
                         v-for="region in regions" 
                         :key="region"
@@ -143,7 +170,7 @@
             <div v-show="viewMode === 'list'">
                 <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 pb-20">
                     <div 
-                        v-for="item in filteredItems" 
+                        v-for="(item, index) in filteredItems" 
                         :key="item.id"
                         @click="toggleOwn(item)"
                         class="item-card bg-white rounded-2xl p-3 shadow-sm border-2 relative overflow-hidden cursor-pointer flex flex-col group"
@@ -159,7 +186,7 @@
                             
                             <button 
                                 v-if="item.image"
-                                @click.stop="openImage(item)"
+                                @click.stop="openImage(item, index)"
                                 class="absolute bottom-1 left-1 bg-white/80 hover:bg-white text-gray-600 hover:text-chii-dark p-1.5 rounded-full shadow-sm backdrop-blur transition-all z-20"
                                 title="查看大圖"
                             >
@@ -171,10 +198,11 @@
                         
                         <div class="flex-1 flex flex-col justify-between">
                             <div>
-                                <div class="flex gap-1 mb-1">
-                                    <span class="text-[10px] bg-chii-pink text-white px-1.5 py-0.5 rounded">{{ item.region }}</span>
-                                    <span class="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">
-                                        {{ item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他' }}
+                                <div class="flex flex-wrap gap-1 mb-1">
+                                    <span class="text-[10px] bg-chii-pink text-white px-1.5 py-0.5 rounded whitespace-nowrap">{{ item.region }}</span>
+                                    <span class="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded whitespace-nowrap">{{ item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他' }}</span>
+                                    <span v-if="item.search_location" class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded whitespace-nowrap flex items-center" title="手動指定地點">
+                                        📍 {{ item.search_location }}
                                     </span>
                                 </div>
                                 <h3 class="text-sm font-bold text-gray-700 leading-tight">{{ item.name }}</h3>
@@ -223,23 +251,33 @@
 
         <transition name="fade">
             <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" @click="closeModal">
-                <div class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+                <div class="absolute inset-0 bg-black/90 backdrop-blur-sm"></div>
                 
-                <div class="bg-white rounded-2xl p-2 md:p-4 shadow-2xl z-10 w-full max-w-lg relative flex flex-col max-h-[90vh]" @click.stop>
-                    <button @click="closeModal" class="absolute -top-3 -right-3 bg-chii-dark text-white rounded-full p-2 shadow-lg hover:bg-gray-800 transition-all z-20">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                        </svg>
+                <div class="relative z-10 w-full max-w-4xl h-full flex flex-col items-center justify-center pointer-events-none">
+                    <div class="bg-white rounded-2xl p-2 md:p-4 shadow-2xl relative flex flex-col max-h-[85vh] w-auto pointer-events-auto" @click.stop>
+                        
+                        <button @click="closeModal" class="absolute -top-4 -right-4 bg-chii-dark text-white rounded-full p-2 shadow-lg hover:bg-gray-800 transition-all z-20 border-2 border-white">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+
+                        <div class="flex-1 overflow-auto flex items-center justify-center bg-gray-50 rounded-xl min-w-[300px] min-h-[300px]">
+                            <img :src="modalImage" class="max-w-full max-h-[60vh] object-contain" alt="Large view">
+                        </div>
+
+                        <div class="mt-4 text-center">
+                            <h3 class="text-lg font-bold text-chii-dark">{{ modalTitle }}</h3>
+                            <p class="text-sm text-gray-500">{{ modalSubtitle }}</p>
+                        </div>
+                    </div>
+
+                    <button v-if="currentModalIndex > 0" @click.stop="prevImage" class="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white rounded-full p-3 backdrop-blur transition-all pointer-events-auto">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                     </button>
-
-                    <div class="flex-1 overflow-auto flex items-center justify-center bg-gray-50 rounded-xl">
-                        <img :src="modalImage" class="max-w-full max-h-[70vh] object-contain" alt="Large view">
-                    </div>
-
-                    <div class="mt-4 text-center">
-                        <h3 class="text-lg font-bold text-chii-dark">{{ modalTitle }}</h3>
-                        <p class="text-sm text-gray-500">{{ modalSubtitle }}</p>
-                    </div>
+                    <button v-if="currentModalIndex < filteredItems.length - 1" @click.stop="nextImage" class="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white rounded-full p-3 backdrop-blur transition-all pointer-events-auto">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                    </button>
                 </div>
             </div>
         </transition>
@@ -256,16 +294,19 @@
                 const viewMode = ref('list');
                 const selectedRegion = ref('全部');
                 const selectedCategory = ref('all');
+                // 🔥 新增：狀態篩選 (all, owned, not_owned)
+                const statusFilter = ref('all');
+                
                 const mapInstance = ref(null);
                 const markers = ref([]);
                 const items = ref([]);
                 const isUpdating = ref(false);
 
-                // Modal 狀態變數
                 const showModal = ref(false);
                 const modalImage = ref('');
                 const modalTitle = ref('');
                 const modalSubtitle = ref('');
+                const currentModalIndex = ref(0);
 
                 const categories = [
                     { key: 'all', label: '全部' },
@@ -274,7 +315,7 @@
                     { key: 'other', label: '其他' }
                 ];
 
-                const regions = ['全部', '北海道', '東北', '關東', '中部', '關西', '中國', '四國', '九州', '沖繩'];
+                const regions = ['全部', '北海道', '東北', '關東', '中部', '近畿', '中國', '四國', '九州', '沖繩', '海外', '其他'];
 
                 const fetchItems = async () => {
                     try {
@@ -300,18 +341,45 @@
                     }
                 };
 
-                // 開啟大圖的方法
-                const openImage = (item) => {
-                    modalImage.value = item.image;
-                    modalTitle.value = item.name;
-                    modalSubtitle.value = `${item.region} | ${item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他'}`;
+                const updateModalContent = () => {
+                    const item = filteredItems.value[currentModalIndex.value];
+                    if (item) {
+                        modalImage.value = item.image;
+                        modalTitle.value = item.name;
+                        modalSubtitle.value = `${item.region} | ${item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他'}`;
+                    }
+                };
+
+                const openImage = (item, index) => {
+                    currentModalIndex.value = index;
+                    updateModalContent();
                     showModal.value = true;
                 };
 
-                // 關閉大圖的方法
                 const closeModal = () => {
                     showModal.value = false;
                 };
+
+                const nextImage = () => {
+                    if (currentModalIndex.value < filteredItems.value.length - 1) {
+                        currentModalIndex.value++;
+                        updateModalContent();
+                    }
+                };
+
+                const prevImage = () => {
+                    if (currentModalIndex.value > 0) {
+                        currentModalIndex.value--;
+                        updateModalContent();
+                    }
+                };
+
+                window.addEventListener('keydown', (e) => {
+                    if (!showModal.value) return;
+                    if (e.key === 'ArrowRight') nextImage();
+                    if (e.key === 'ArrowLeft') prevImage();
+                    if (e.key === 'Escape') closeModal();
+                });
 
                 const autoUpdate = async () => {
                     isUpdating.value = true;
@@ -327,11 +395,99 @@
                     }
                 };
 
+                const fixRegions = async () => {
+                    if(!confirm("確定要依照目前設定的地點 (search_location) 重新分類所有商品嗎？\n\n這不會重新爬蟲，只會快速修正資料庫內的分類。")) return;
+                    
+                    isUpdating.value = true;
+                    try {
+                        const res = await fetch('/api/fix_regions', { method: 'POST' });
+                        const result = await res.json();
+                        alert(`修正完成！共更新了 ${result.updated} 筆商品的地區分類。`);
+                        await fetchItems();
+                    } catch (e) {
+                        alert("修正失敗: " + e);
+                    } finally {
+                        isUpdating.value = false;
+                    }
+                };
+
+                const exportData = () => {
+                    const exportItems = items.value.map(item => ({
+                        ...item,
+                        search_location: item.search_location || ""
+                    }));
+                    const dataStr = JSON.stringify(exportItems, null, 2);
+                    const blob = new Blob([dataStr], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = "chiikawa_backup.json";
+                    link.click();
+                    URL.revokeObjectURL(url);
+                    alert("備份檔已下載！\n\n【小技巧】\n若要手動修改地點，請在 JSON 裡的商品加上 'search_location' 欄位\n例如: \"search_location\": \"市川市\"\n然後重新匯入即可！");
+                };
+
+                const triggerImport = () => {
+                    document.getElementById('importFile').click();
+                };
+
+                const importData = async (event) => {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        try {
+                            const jsonContent = JSON.parse(e.target.result);
+                            if (!Array.isArray(jsonContent)) {
+                                alert("錯誤：檔案格式不正確 (應為列表)");
+                                return;
+                            }
+                            
+                            const hasSearch = jsonContent.some(i => i.search_location);
+                            let msg = "確定要匯入覆蓋目前的資料嗎？";
+                            if(hasSearch) msg = "偵測到您有指定地點，系統將開始自動查詢座標...\n這可能需要一點時間，請耐心等待。";
+                            
+                            if(!confirm(msg)) return;
+
+                            isUpdating.value = true;
+                            const res = await fetch('/api/import_data', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(jsonContent)
+                            });
+                            
+                            const result = await res.json();
+                            if(result.status === 'success') {
+                                alert(`匯入成功！\n共處理 ${jsonContent.length} 筆資料。\n自動定位了 ${result.geocoded} 個地點。`);
+                                fetchItems();
+                            } else {
+                                alert("匯入失敗: " + result.message);
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            alert("檔案讀取失敗或 JSON 格式錯誤");
+                        } finally {
+                            isUpdating.value = false;
+                            event.target.value = '';
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+
                 const filteredItems = computed(() => {
                     return items.value.filter(item => {
+                        // 1. 地區篩選
                         const matchRegion = selectedRegion.value === '全部' || item.region === selectedRegion.value;
+                        // 2. 分類篩選
                         const matchCategory = selectedCategory.value === 'all' || item.category === selectedCategory.value;
-                        return matchRegion && matchCategory;
+                        // 🔥 3. 狀態篩選 (新增)
+                        const matchStatus = 
+                            statusFilter.value === 'all' ? true :
+                            statusFilter.value === 'owned' ? item.owned :
+                            !item.owned;
+
+                        return matchRegion && matchCategory && matchStatus;
                     });
                 });
 
@@ -360,6 +516,21 @@
                         }
                     }, 100);
                 };
+				
+				const MAJOR_AIRPORTS = [
+                    { name: "新千歲空港", lat: 42.7934, lng: 141.6923 }, 
+                    { name: "函館空港", lat: 41.7704, lng: 140.8222 }, 
+                    { name: "仙台空港", lat: 38.1398, lng: 140.9169 }, 
+                    { name: "羽田空港", lat: 35.5494, lng: 139.7798 }, 
+                    { name: "成田空港", lat: 35.7720, lng: 140.3929 }, 
+                    { name: "中部國際空港", lat: 34.8584, lng: 136.8053 },
+                    { name: "伊丹空港", lat: 34.7855, lng: 135.4382 }, 
+                    { name: "關西國際空港", lat: 34.4320, lng: 135.2304 }, 
+                    { name: "廣島空港", lat: 34.4398, lng: 132.9195 }, 
+                    { name: "福岡空港", lat: 33.5859, lng: 130.4507 }, 
+                    { name: "鹿兒島空港", lat: 31.8035, lng: 130.7196 }, 
+                    { name: "那霸空港", lat: 26.2048, lng: 127.6458 }
+                ];
 
                 const updateMapMarkers = () => {
                     if (!mapInstance.value) return;
@@ -397,40 +568,74 @@
                             popupAnchor: [0, -40]
                         });
 
-                        const catLabel = item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他';
+                        const airportKeywords = ['空港', 'パイロット', '飛行機', 'CA', 'エアポート'];
+                        const isAirportItem = airportKeywords.some(kw => item.name.includes(kw));
 
-                        const marker = L.marker([item.lat, item.lng], {icon: customIcon})
-                            .bindPopup(`
-                                <div style="text-align: center;">
-                                    <b style="color:#5d4037">${item.name}</b><br>
-                                    <span style="font-size:12px; color:#888">${item.region} | ${catLabel}</span>
-                                    <br>
-                                    <button onclick="document.getElementById('toggle-btn-${item.id}').click()" 
-                                            style="margin-top:5px; padding:4px 10px; border-radius:12px; border:none; background:${isOwned?'#eee':'#ffb7ce'}; color:${isOwned?'#888':'white'}; cursor:pointer;">
-                                        ${isOwned ? '取消收藏' : '加入收藏'}
-                                    </button>
-                                    <button id="toggle-btn-${item.id}" style="display:none"></button>
-                                </div>
-                            `);
-                            
-                        marker.on('popupopen', () => {
-                            setTimeout(() => {
-                                const btn = document.getElementById(`toggle-btn-${item.id}`);
-                                if(btn) {
-                                    btn.onclick = () => {
-                                        toggleOwn(item);
-                                        marker.closePopup();
-                                    };
-                                }
-                            }, 0);
-                        });
-
-                        marker.addTo(mapInstance.value);
-                        markers.value.push(marker);
+                        if (isAirportItem && !item.search_location) {
+                            MAJOR_AIRPORTS.forEach(airport => {
+                                const marker = L.marker([airport.lat, airport.lng], {icon: customIcon})
+                                    .bindPopup(`
+                                        <div style="text-align: center;">
+                                            <b style="color:#5d4037">${item.name}</b><br>
+                                            <span style="font-size:12px; color:#888">
+                                                📍 ${airport.name} (全日本機場限定)<br>
+                                                ${item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他'}
+                                            </span>
+                                            <br>
+                                            <button onclick="document.getElementById('toggle-btn-${item.id}').click()" 
+                                                    style="margin-top:5px; padding:4px 10px; border-radius:12px; border:none; background:${isOwned?'#eee':'#ffb7ce'}; color:${isOwned?'#888':'white'}; cursor:pointer;">
+                                                ${isOwned ? '取消收藏' : '加入收藏'}
+                                            </button>
+                                            <button id="toggle-btn-${item.id}" style="display:none"></button>
+                                        </div>
+                                    `);
+                                marker.on('popupopen', () => {
+                                    setTimeout(() => {
+                                        const btn = document.getElementById(`toggle-btn-${item.id}`);
+                                        if(btn) {
+                                            btn.onclick = () => {
+                                                toggleOwn(item);
+                                                marker.closePopup();
+                                            };
+                                        }
+                                    }, 0);
+                                });
+                                marker.addTo(mapInstance.value);
+                                markers.value.push(marker);
+                            });
+                        } else {
+                            const catLabel = item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他';
+                            const marker = L.marker([item.lat, item.lng], {icon: customIcon})
+                                .bindPopup(`
+                                    <div style="text-align: center;">
+                                        <b style="color:#5d4037">${item.name}</b><br>
+                                        <span style="font-size:12px; color:#888">${item.region} | ${catLabel}</span>
+                                        <br>
+                                        <button onclick="document.getElementById('toggle-btn-${item.id}').click()" 
+                                                style="margin-top:5px; padding:4px 10px; border-radius:12px; border:none; background:${isOwned?'#eee':'#ffb7ce'}; color:${isOwned?'#888':'white'}; cursor:pointer;">
+                                            ${isOwned ? '取消收藏' : '加入收藏'}
+                                        </button>
+                                        <button id="toggle-btn-${item.id}" style="display:none"></button>
+                                    </div>
+                                `);
+                            marker.on('popupopen', () => {
+                                setTimeout(() => {
+                                    const btn = document.getElementById(`toggle-btn-${item.id}`);
+                                    if(btn) {
+                                        btn.onclick = () => {
+                                            toggleOwn(item);
+                                            marker.closePopup();
+                                        };
+                                    }
+                                }, 0);
+                            });
+                            marker.addTo(mapInstance.value);
+                            markers.value.push(marker);
+                        }
                     });
                 };
 
-                watch([selectedRegion, selectedCategory], () => {
+                watch([selectedRegion, selectedCategory, statusFilter], () => {
                     if (viewMode.value === 'map') {
                         initMap();
                     }
@@ -438,7 +643,6 @@
 
                 onMounted(() => {
                     fetchItems();
-                    
                     const scrollContainer = document.getElementById('region-scroll-area');
                     if (scrollContainer) {
                         scrollContainer.addEventListener('wheel', (evt) => {
@@ -452,9 +656,12 @@
 
                 return {
                     viewMode, regions, categories, selectedRegion, selectedCategory,
+                    statusFilter, // 🔥 回傳這個新變數
                     filteredItems, toggleOwn, ownedCount, progressPercentage, initMap,
                     items, autoUpdate, isUpdating,
-                    showModal, modalImage, modalTitle, modalSubtitle, openImage, closeModal
+                    showModal, modalImage, modalTitle, modalSubtitle, currentModalIndex,
+                    openImage, closeModal, nextImage, prevImage,
+                    exportData, triggerImport, importData, fixRegions
                 };
             }
         }).mount('#app');
