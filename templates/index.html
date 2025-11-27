@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chiikawa地區限定圖鑑</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'chii-bg': '#fff5f7',
+                        'chii-pink': '#ffb7ce',
+                        'chii-dark': '#5d4037',
+                    },
+                    fontFamily: {
+                        sans: ['Zen Maru Gothic', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { 
+            background-color: #fff5f7; 
+            color: #5d4037;
+            background-image: radial-gradient(#ffb7ce 15%, transparent 16%), radial-gradient(#ffb7ce 15%, transparent 16%);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+            background-attachment: fixed;
+        }
+        
+        .region-scroll-container {
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            cursor: grab;
+        }
+        .region-scroll-container:active { cursor: grabbing; }
+
+        @media (max-width: 768px) {
+            .region-scroll-container::-webkit-scrollbar { display: none; }
+            .region-scroll-container { -ms-overflow-style: none; scrollbar-width: none; }
+        }
+
+        @media (min-width: 769px) {
+            .region-scroll-container::-webkit-scrollbar { height: 8px; }
+            .region-scroll-container::-webkit-scrollbar-track { background: #fff0f5; border-radius: 4px; }
+            .region-scroll-container::-webkit-scrollbar-thumb { background-color: #ffb7ce; border-radius: 4px; border: 2px solid #fff0f5; }
+        }
+
+        .item-card { transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .item-card:active { transform: scale(0.95); }
+        .item-card:hover { transform: translateY(-3px); }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #ffb7ce;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col">
+
+    {% raw %}
+
+    <div id="app" class="h-full flex flex-col w-full mx-auto relative bg-white/90 backdrop-blur-sm shadow-xl md:max-w-5xl md:h-[95vh] md:my-auto md:rounded-3xl border-4 border-white">
+        
+        <header class="p-4 bg-white sticky top-0 z-30 shadow-sm flex flex-col gap-3 md:rounded-t-3xl">
+            <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                <div class="flex items-center gap-3">
+                    <img 
+                        src="https://www.popdaily.com.tw/shaper/u/202409/f7984971-9f2d-4ccf-963f-7cc7acfec817.png?resize-w=900&resize-h=900&format=webp" 
+                        alt="Chiikawa Logo" 
+                        class="w-14 h-14 object-cover rounded-full border-2 border-chii-pink shadow-sm hidden sm:block"
+                    >
+                    <div>
+                        <h1 class="text-xl font-black text-chii-dark tracking-wider">Chiikawa地區限定圖鑑</h1>
+                        <p class="text-xs text-gray-400 font-bold">地區限定收集紀錄</p>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2 self-end sm:self-auto items-center">
+                    
+                    <button @click="autoUpdate" :disabled="isUpdating" 
+                        class="px-4 py-1.5 rounded-full text-xs font-bold text-white bg-chii-dark hover:bg-gray-700 shadow transition-all flex items-center gap-2">
+                        <span v-if="!isUpdating">🔄 更新商品</span>
+                        <span v-else class="flex items-center gap-2">
+                            <div class="loader"></div> 爬取中...
+                        </span>
+                    </button>
+
+                    <div class="flex gap-1 bg-gray-100 p-1 rounded-full border border-gray-200">
+                        <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'bg-white shadow text-chii-dark' : 'text-gray-400'" class="px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1">
+                            <span>📝</span>
+                        </button>
+                        <button @click="initMap" :class="viewMode === 'map' ? 'bg-white shadow text-chii-dark' : 'text-gray-400'" class="px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1">
+                            <span>🗺️</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-3 md:items-center justify-between bg-chii-bg p-3 rounded-xl border border-pink-100">
+                <div class="flex gap-2 flex-shrink-0">
+                    <button v-for="cat in categories" :key="cat.key" 
+                        @click="selectedCategory = cat.key"
+                        :class="selectedCategory === cat.key ? 'bg-chii-dark text-white ring-2 ring-offset-2 ring-chii-dark' : 'bg-white text-gray-500 hover:bg-gray-50'"
+                        class="px-4 py-1.5 rounded-lg text-sm font-bold transition-all border border-gray-200 whitespace-nowrap">
+                        {{ cat.label }}
+                    </button>
+                </div>
+
+                <div id="region-scroll-area" class="region-scroll-container flex items-center gap-2 pb-2 md:pb-2 w-full md:w-auto">
+                    <button 
+                        v-for="region in regions" 
+                        :key="region"
+                        @click="selectedRegion = region"
+                        :class="selectedRegion === region ? 'bg-chii-pink text-white shadow-md transform scale-105' : 'bg-white text-gray-500 border border-gray-100'"
+                        class="px-4 py-1.5 rounded-full text-sm flex-shrink-0 transition-all font-bold select-none">
+                        {{ region }}
+                    </button>
+                    <div class="w-1 flex-shrink-0"></div>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 overflow-y-auto p-4 relative bg-transparent">
+            <div v-show="viewMode === 'list'">
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 pb-20">
+                    <div 
+                        v-for="item in filteredItems" 
+                        :key="item.id"
+                        @click="toggleOwn(item)"
+                        class="item-card bg-white rounded-2xl p-3 shadow-sm border-2 relative overflow-hidden cursor-pointer flex flex-col"
+                        :class="item.owned ? 'border-green-400 bg-green-50' : 'border-white'">
+                        
+                        <div class="absolute top-2 right-2 z-10">
+                            <span v-if="item.owned" class="bg-green-500 text-white text-[10px] px-2 py-1 rounded-full font-bold shadow-sm">GET!</span>
+                        </div>
+
+                        <div class="w-full aspect-square bg-gray-50 rounded-xl mb-3 flex items-center justify-center text-5xl shadow-inner relative overflow-hidden group">
+                            <img v-if="item.image" :src="item.image" class="w-full h-full object-contain transition-transform group-hover:scale-110" loading="lazy">
+                            <span v-else class="transform transition-transform group-hover:scale-110 select-none">{{ item.emoji }}</span>
+                        </div>
+                        
+                        <div class="flex-1 flex flex-col justify-between">
+                            <div>
+                                <div class="flex gap-1 mb-1">
+                                    <span class="text-[10px] bg-chii-pink text-white px-1.5 py-0.5 rounded">{{ item.region }}</span>
+                                    
+                                    <span class="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">
+                                        {{ item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他' }}
+                                    </span>
+
+                                </div>
+                                <h3 class="text-sm font-bold text-gray-700 leading-tight">{{ item.name }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div v-if="filteredItems.length === 0" class="flex flex-col items-center justify-center py-20 text-gray-400 gap-4">
+                    <div v-if="items.length === 0" class="text-center">
+                        <div class="text-4xl mb-2">📥</div>
+                        <p>資料庫目前是空的</p>
+                        <p class="text-xs">請點擊上方「更新商品」按鈕開始爬蟲</p>
+                    </div>
+                    <div v-else class="text-center">
+                        <div class="text-4xl">🌫️</div>
+                        <p>這個分類下還沒有商品資料喔</p>
+                    </div>
+                </div>
+            </div>
+
+            <div v-show="viewMode === 'map'" class="absolute inset-0 z-0 bg-gray-100 md:rounded-b-2xl overflow-hidden">
+                <div id="map" class="h-full w-full"></div>
+            </div>
+        </main>
+
+        <footer class="bg-white/95 backdrop-blur border-t border-pink-100 p-4 pb-6 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-20 md:rounded-b-3xl">
+            <div class="flex justify-between items-center max-w-2xl mx-auto md:max-w-none">
+                <div class="flex flex-col">
+                    <span class="text-xs text-gray-400 font-bold">COLLECTION STATUS</span>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-2xl font-black text-chii-dark">{{ ownedCount }}</span>
+                        <span class="text-sm text-gray-400 font-bold">/ {{ filteredItems.length }}</span>
+                    </div>
+                </div>
+                
+                <div class="flex-1 mx-4 max-w-xs">
+                    <div class="h-3 w-full bg-gray-100 rounded-full overflow-hidden shadow-inner">
+                        <div class="h-full bg-gradient-to-r from-green-400 to-green-500 transition-all duration-700 ease-out" :style="{width: progressPercentage + '%'}"></div>
+                    </div>
+                </div>
+                
+                <div class="text-green-500 font-black text-lg">{{ Math.round(progressPercentage) }}%</div>
+            </div>
+        </footer>
+
+    </div>
+
+    {% endraw %}
+
+    <script>
+        const { createApp, ref, computed, watch, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const viewMode = ref('list');
+                const selectedRegion = ref('全部');
+                const selectedCategory = ref('all');
+                const mapInstance = ref(null);
+                const markers = ref([]);
+                const items = ref([]);
+                const isUpdating = ref(false);
+
+                // 新增 "其他" 選項
+                const categories = [
+                    { key: 'all', label: '全部' },
+                    { key: 'tag', label: '鐵牌' },
+                    { key: 'plush', label: '娃娃' },
+                    { key: 'other', label: '其他' }
+                ];
+
+                const regions = ['全部', '北海道', '東北', '關東', '中部', '關西', '中國', '四國', '九州', '沖繩'];
+
+                const fetchItems = async () => {
+                    try {
+                        const res = await fetch('/api/items');
+                        items.value = await res.json();
+                    } catch (e) {
+                        console.error("無法連接到後端", e);
+                    }
+                };
+
+                const toggleOwn = async (item) => {
+                    item.owned = !item.owned;
+                    try {
+                        await fetch('/api/toggle_item', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: item.id })
+                        });
+                        if(viewMode.value === 'map') updateMapMarkers();
+                    } catch (e) {
+                        alert("儲存失敗，請確認後端是否開啟");
+                        item.owned = !item.owned;
+                    }
+                };
+
+                const autoUpdate = async () => {
+                    isUpdating.value = true;
+                    try {
+                        const res = await fetch('/api/refresh', { method: 'POST' });
+                        const result = await res.json();
+                        alert(`更新完成！資料庫現在共有 ${result.total} 筆商品。`);
+                        await fetchItems();
+                    } catch (e) {
+                        alert("更新失敗，請檢查 Python 控制台錯誤訊息");
+                    } finally {
+                        isUpdating.value = false;
+                    }
+                };
+
+                const filteredItems = computed(() => {
+                    return items.value.filter(item => {
+                        const matchRegion = selectedRegion.value === '全部' || item.region === selectedRegion.value;
+                        const matchCategory = selectedCategory.value === 'all' || item.category === selectedCategory.value;
+                        return matchRegion && matchCategory;
+                    });
+                });
+
+                const ownedCount = computed(() => filteredItems.value.filter(i => i.owned).length);
+                const progressPercentage = computed(() => {
+                    if (filteredItems.value.length === 0) return 0;
+                    return (ownedCount.value / filteredItems.value.length) * 100;
+                });
+
+                const initMap = () => {
+                    viewMode.value = 'map';
+                    setTimeout(() => {
+                        if (!mapInstance.value) {
+                            mapInstance.value = L.map('map').setView([36.2048, 138.2529], 5);
+                            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png', {
+                                attribution: '©OpenStreetMap',
+                                maxZoom: 18
+                            }).addTo(mapInstance.value);
+                        }
+                        mapInstance.value.invalidateSize();
+                        updateMapMarkers();
+                        
+                        if(markers.value.length > 0) {
+                            const group = new L.featureGroup(markers.value);
+                            mapInstance.value.fitBounds(group.getBounds().pad(0.2));
+                        }
+                    }, 100);
+                };
+
+                const updateMapMarkers = () => {
+                    if (!mapInstance.value) return;
+                    
+                    markers.value.forEach(m => mapInstance.value.removeLayer(m));
+                    markers.value = [];
+
+                    filteredItems.value.forEach(item => {
+                        const isOwned = item.owned;
+                        const bgColor = isOwned ? '#4ade80' : '#ffb7ce';
+                        
+                        const contentHtml = item.image 
+                            ? `<img src="${item.image}" style="width:26px; height:26px; object-fit:contain; border-radius:50%;">`
+                            : `<div style="font-size:18px;">${item.emoji}</div>`;
+
+                        const customIcon = L.divIcon({
+                            className: 'custom-pin',
+                            html: `
+                                <div style="
+                                    background-color: ${bgColor};
+                                    width: 36px; height: 36px;
+                                    border-radius: 50% 50% 50% 0;
+                                    transform: rotate(-45deg);
+                                    border: 3px solid white;
+                                    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+                                    display: flex; align-items: center; justify-content: center;
+                                ">
+                                    <div style="transform: rotate(45deg); display:flex; justify-content:center; align-items:center;">
+                                        ${contentHtml}
+                                    </div>
+                                </div>
+                            `,
+                            iconSize: [36, 36],
+                            iconAnchor: [18, 36],
+                            popupAnchor: [0, -40]
+                        });
+                        
+                        // Map Popup 文字也要更新
+                        const catLabel = item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他';
+
+                        const marker = L.marker([item.lat, item.lng], {icon: customIcon})
+                            .bindPopup(`
+                                <div style="text-align: center;">
+                                    <b style="color:#5d4037">${item.name}</b><br>
+                                    <span style="font-size:12px; color:#888">${item.region} | ${catLabel}</span>
+                                    <br>
+                                    <button onclick="document.getElementById('toggle-btn-${item.id}').click()" 
+                                            style="margin-top:5px; padding:4px 10px; border-radius:12px; border:none; background:${isOwned?'#eee':'#ffb7ce'}; color:${isOwned?'#888':'white'}; cursor:pointer;">
+                                        ${isOwned ? '取消收藏' : '加入收藏'}
+                                    </button>
+                                    <button id="toggle-btn-${item.id}" style="display:none"></button>
+                                </div>
+                            `);
+                            
+                        marker.on('popupopen', () => {
+                            setTimeout(() => {
+                                const btn = document.getElementById(`toggle-btn-${item.id}`);
+                                if(btn) {
+                                    btn.onclick = () => {
+                                        toggleOwn(item);
+                                        marker.closePopup();
+                                    };
+                                }
+                            }, 0);
+                        });
+
+                        marker.addTo(mapInstance.value);
+                        markers.value.push(marker);
+                    });
+                };
+
+                watch([selectedRegion, selectedCategory], () => {
+                    if (viewMode.value === 'map') {
+                        initMap();
+                    }
+                });
+
+                onMounted(() => {
+                    fetchItems();
+                    
+                    const scrollContainer = document.getElementById('region-scroll-area');
+                    if (scrollContainer) {
+                        scrollContainer.addEventListener('wheel', (evt) => {
+                            if (evt.deltaY !== 0 && window.innerWidth > 768) {
+                                evt.preventDefault();
+                                scrollContainer.scrollLeft += evt.deltaY;
+                            }
+                        });
+                    }
+                });
+
+                return {
+                    viewMode, regions, categories, selectedRegion, selectedCategory,
+                    filteredItems, toggleOwn, ownedCount, progressPercentage, initMap,
+                    items, autoUpdate, isUpdating
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
