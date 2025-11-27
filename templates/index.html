@@ -68,6 +68,10 @@
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Modal 動畫 */
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
     </style>
 </head>
 <body class="h-screen w-screen overflow-hidden flex flex-col">
@@ -142,27 +146,36 @@
                         v-for="item in filteredItems" 
                         :key="item.id"
                         @click="toggleOwn(item)"
-                        class="item-card bg-white rounded-2xl p-3 shadow-sm border-2 relative overflow-hidden cursor-pointer flex flex-col"
+                        class="item-card bg-white rounded-2xl p-3 shadow-sm border-2 relative overflow-hidden cursor-pointer flex flex-col group"
                         :class="item.owned ? 'border-green-400 bg-green-50' : 'border-white'">
                         
                         <div class="absolute top-2 right-2 z-10">
                             <span v-if="item.owned" class="bg-green-500 text-white text-[10px] px-2 py-1 rounded-full font-bold shadow-sm">GET!</span>
                         </div>
 
-                        <div class="w-full aspect-square bg-gray-50 rounded-xl mb-3 flex items-center justify-center text-5xl shadow-inner relative overflow-hidden group">
-                            <img v-if="item.image" :src="item.image" class="w-full h-full object-contain transition-transform group-hover:scale-110" loading="lazy">
+                        <div class="w-full aspect-square bg-gray-50 rounded-xl mb-3 flex items-center justify-center text-5xl shadow-inner relative overflow-hidden">
+                            <img v-if="item.image" :src="item.image" class="w-full h-full object-contain transition-transform group-hover:scale-105" loading="lazy">
                             <span v-else class="transform transition-transform group-hover:scale-110 select-none">{{ item.emoji }}</span>
+                            
+                            <button 
+                                v-if="item.image"
+                                @click.stop="openImage(item)"
+                                class="absolute bottom-1 left-1 bg-white/80 hover:bg-white text-gray-600 hover:text-chii-dark p-1.5 rounded-full shadow-sm backdrop-blur transition-all z-20"
+                                title="查看大圖"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                                </svg>
+                            </button>
                         </div>
                         
                         <div class="flex-1 flex flex-col justify-between">
                             <div>
                                 <div class="flex gap-1 mb-1">
                                     <span class="text-[10px] bg-chii-pink text-white px-1.5 py-0.5 rounded">{{ item.region }}</span>
-                                    
                                     <span class="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">
                                         {{ item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他' }}
                                     </span>
-
                                 </div>
                                 <h3 class="text-sm font-bold text-gray-700 leading-tight">{{ item.name }}</h3>
                             </div>
@@ -208,6 +221,29 @@
             </div>
         </footer>
 
+        <transition name="fade">
+            <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" @click="closeModal">
+                <div class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+                
+                <div class="bg-white rounded-2xl p-2 md:p-4 shadow-2xl z-10 w-full max-w-lg relative flex flex-col max-h-[90vh]" @click.stop>
+                    <button @click="closeModal" class="absolute -top-3 -right-3 bg-chii-dark text-white rounded-full p-2 shadow-lg hover:bg-gray-800 transition-all z-20">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+
+                    <div class="flex-1 overflow-auto flex items-center justify-center bg-gray-50 rounded-xl">
+                        <img :src="modalImage" class="max-w-full max-h-[70vh] object-contain" alt="Large view">
+                    </div>
+
+                    <div class="mt-4 text-center">
+                        <h3 class="text-lg font-bold text-chii-dark">{{ modalTitle }}</h3>
+                        <p class="text-sm text-gray-500">{{ modalSubtitle }}</p>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
     </div>
 
     {% endraw %}
@@ -225,7 +261,12 @@
                 const items = ref([]);
                 const isUpdating = ref(false);
 
-                // 新增 "其他" 選項
+                // Modal 狀態變數
+                const showModal = ref(false);
+                const modalImage = ref('');
+                const modalTitle = ref('');
+                const modalSubtitle = ref('');
+
                 const categories = [
                     { key: 'all', label: '全部' },
                     { key: 'tag', label: '鐵牌' },
@@ -257,6 +298,19 @@
                         alert("儲存失敗，請確認後端是否開啟");
                         item.owned = !item.owned;
                     }
+                };
+
+                // 開啟大圖的方法
+                const openImage = (item) => {
+                    modalImage.value = item.image;
+                    modalTitle.value = item.name;
+                    modalSubtitle.value = `${item.region} | ${item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他'}`;
+                    showModal.value = true;
+                };
+
+                // 關閉大圖的方法
+                const closeModal = () => {
+                    showModal.value = false;
                 };
 
                 const autoUpdate = async () => {
@@ -342,8 +396,7 @@
                             iconAnchor: [18, 36],
                             popupAnchor: [0, -40]
                         });
-                        
-                        // Map Popup 文字也要更新
+
                         const catLabel = item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他';
 
                         const marker = L.marker([item.lat, item.lng], {icon: customIcon})
@@ -400,7 +453,8 @@
                 return {
                     viewMode, regions, categories, selectedRegion, selectedCategory,
                     filteredItems, toggleOwn, ownedCount, progressPercentage, initMap,
-                    items, autoUpdate, isUpdating
+                    items, autoUpdate, isUpdating,
+                    showModal, modalImage, modalTitle, modalSubtitle, openImage, closeModal
                 };
             }
         }).mount('#app');
