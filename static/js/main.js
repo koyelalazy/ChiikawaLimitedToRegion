@@ -98,9 +98,6 @@ createApp({
         const openSettings = () => { appState.tempFolderName.value = appState.folderName.value; appState.showSettingsModal.value = true; };
         const saveSettings = () => { if (appState.isLoggedIn.value) { ui.openPicker(); } else { alert("請先登入 Google"); } appState.showSettingsModal.value = false; };
 
-        const categories = [{ key: 'all', label: '全部' }, { key: 'tag', label: '鐵牌' }, { key: 'plush', label: '娃娃' }, { key: 'socks', label: '襪子' }, { key: 'other', label: '其他' }];
-        const regions = ['全部', '北海道', '東北', '關東', '中部', '近畿', '中國', '四國', '九州', '沖繩', '海外', '其他'];
-
         watch([appState.selectedRegion, appState.selectedCategory, appState.statusFilter], () => { if (appState.viewMode.value === 'map') ui.initMap(); });
         watch(
             () => appState.userStatus.value,
@@ -137,7 +134,6 @@ createApp({
             ...appState,
             ...ui,
             ...storage,
-            categories, regions,
             openSettings, saveSettings,
             handleAuthClick
         };

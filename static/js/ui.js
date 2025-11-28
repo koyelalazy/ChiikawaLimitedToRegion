@@ -1,7 +1,9 @@
-export function setupUI(appState, AppConfig, storageFunctions, Vue) {
-    const { ref, computed, watch, nextTick } = Vue;
+// static/js/ui.js
 
-    // --- 輔助：API 呼叫 ---
+export function setupUI(appState, AppConfig, storageFunctions, Vue) {
+    const { ref, computed, watch, nextTick, markRaw } = Vue;
+
+    // --- API 呼叫 ---
     const apiCall = async (url, method = 'GET', body = null) => {
         const headers = { 'Content-Type': 'application/json' };
         const config = { method, headers };
@@ -10,9 +12,7 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
         try {
             const res = await fetch(url, config);
             const result = await res.json();
-            if (result.status === 'error') {
-                throw new Error(result.message || "API 請求錯誤");
-            }
+            if (result.status === 'error') throw new Error(result.message || "API 請求錯誤");
             return result;
         } catch (e) {
             console.error("API Error:", e);
@@ -21,41 +21,28 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
         }
     };
 
-    // --- 核心：資料合併 ---
     const mergeData = () => {
         if (!appState.publicItems.value || !Array.isArray(appState.publicItems.value)) {
             appState.items.value = [];
             return;
         }
         appState.items.value = appState.publicItems.value.map(pItem => {
-            // Key 優先順序: 圖片檔名 > 名稱
             const key = pItem.image ? pItem.image.split('/').pop() : pItem.name;
             const uStat = appState.userStatus.value[key] || {};
-
-            return {
-                ...pItem,
-                owned: uStat.owned || false,
-                // search_location 由公有資料庫決定，若使用者有特殊覆蓋可在此邏輯擴充
-            };
+            return { ...pItem, owned: uStat.owned || false };
         });
-        // 如果在地圖模式，更新標記
-        if (appState.viewMode.value === 'map') {
-            // 使用 nextTick 確保資料更新後才重繪
-            nextTick(() => updateMapMarkers());
-        }
+        if (appState.viewMode.value === 'map') updateMapMarkers();
     };
 
-    // --- 讀取公有商品 ---
     const fetchPublicItems = async () => {
         try {
             const result = await apiCall('/api/public_items');
             appState.publicItems.value = Array.isArray(result) ? result : [];
             mergeData();
             if (appState.viewMode.value === 'map') initMap();
-        } catch (e) { console.error(e); }
+        } catch (e) { /*...*/ }
     };
 
-    // --- Computed Properties ---
     const filteredItems = computed(() => {
         if (!appState.items.value || !Array.isArray(appState.items.value)) return [];
         return appState.items.value.filter(item => {
@@ -67,19 +54,14 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
     });
 
     const ownedCount = computed(() => appState.items.value ? appState.items.value.filter(i => i.owned).length : 0);
-    const progressPercentage = computed(() => {
-        if (!appState.items.value || appState.items.value.length === 0) return 0;
-        return (ownedCount.value / appState.items.value.length) * 100;
-    });
+    const progressPercentage = computed(() => appState.items.value.length ? (ownedCount.value / appState.items.value.length) * 100 : 0);
 
-    // --- 事件處理 ---
     let saveTimeout = null;
     const toggleOwn = (item) => {
         item.owned = !item.owned;
         const key = item.image ? item.image.split('/').pop() : item.name;
         if (!appState.userStatus.value[key]) appState.userStatus.value[key] = {};
         appState.userStatus.value[key].owned = item.owned;
-
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => { storageFunctions.saveUserData(); }, 1000);
     };
@@ -88,10 +70,11 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
         appState.isUpdating.value = true;
         try {
             const res = await apiCall('/api/refresh', 'POST', appState.items.value);
-            appState.publicItems.value = res.data; // 更新公有資料
+            appState.publicItems.value = res.data;
             mergeData();
-            alert(`更新完成！共 ${res.total} 筆商品。`);
-        } catch (e) { /* apiCall 已處理 alert */ }
+            const totalCount = res.total !== undefined ? res.total : (res.data ? res.data.length : 0);
+            alert(`更新完成！共 ${totalCount} 筆商品。`);
+        } catch (e) { /*...*/ }
         finally { appState.isUpdating.value = false; }
     };
 
@@ -103,7 +86,10 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
             appState.publicItems.value = res.data;
             mergeData();
             alert(`修正完成！更新了 ${res.updated} 筆。`);
-        } catch (e) { /*...*/ }
+        } catch (e) {
+            console.error(e);
+            alert("修正失敗");
+        }
         finally { appState.isUpdating.value = false; }
     };
 
@@ -120,7 +106,6 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
         finally { appState.isUpdating.value = false; }
     };
 
-    // --- 匯入匯出 ---
     const downloadJson = (contentStr, fileName) => {
         const blob = new Blob([contentStr], { type: "application/json" });
         const url = URL.createObjectURL(blob);
@@ -150,8 +135,8 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
                 const jsonContent = JSON.parse(e.target.result);
                 if (!confirm("確定要還原收藏紀錄嗎？")) return;
                 appState.userStatus.value = jsonContent;
-                // mergeData 會由 main.js 的 watcher 觸發
                 storageFunctions.saveUserData();
+                mergeData();
                 alert("還原成功！");
             } catch (err) { alert("格式錯誤"); }
             finally { event.target.value = ''; }
@@ -180,11 +165,10 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
     const resetSelections = () => {
         if (!confirm("確定要清除所有勾選？")) return;
         appState.userStatus.value = {};
-        // mergeData 由 watcher 觸發
+        mergeData();
         storageFunctions.saveUserData();
     };
 
-    // --- Map & Modal ---
     const toggleModalItem = () => { if (appState.modalItem.value) toggleOwn(appState.modalItem.value); };
     const updateModalContent = () => {
         if (!filteredItems.value.length) return;
@@ -192,7 +176,7 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
         if (item) {
             appState.modalImage.value = item.image;
             appState.modalTitle.value = item.name;
-            appState.modalSubtitle.value = `${item.region} | ${item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : item.category === 'socks' ? '襪子' : '其他'}`;
+            appState.modalSubtitle.value = `${item.region} | ${item.category}`;
             appState.modalItem.value = item;
         }
     };
@@ -201,7 +185,7 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
     const nextImage = () => { if (appState.currentModalIndex.value < filteredItems.value.length - 1) { appState.currentModalIndex.value++; updateModalContent(); } };
     const prevImage = () => { if (appState.currentModalIndex.value > 0) { appState.currentModalIndex.value--; updateModalContent(); } };
 
-    // Map Data
+    // --- Map ---
     const MAJOR_AIRPORTS = [
         { name: "新千歲空港", lat: 42.7934, lng: 141.6923 }, { name: "函館空港", lat: 41.7704, lng: 140.8222 },
         { name: "仙台空港", lat: 38.1398, lng: 140.9169 }, { name: "羽田空港", lat: 35.5494, lng: 139.7798 },
@@ -220,55 +204,149 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
             const mapContainer = document.getElementById('map');
             if (!mapContainer) return;
 
-            if (!mapInstance.value) {
-                mapInstance.value = L.map('map').setView([36.2048, 138.2529], 5);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png', { attribution: '©OpenStreetMap', maxZoom: 18 }).addTo(mapInstance.value);
+            if (!appState.mapInstance.value) {
+                appState.mapInstance.value = markRaw(L.map('map').setView([36.2048, 138.2529], 5));
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png', { attribution: '©OpenStreetMap', maxZoom: 18 }).addTo(appState.mapInstance.value);
             }
             setTimeout(() => {
-                mapInstance.value.invalidateSize();
+                appState.mapInstance.value.invalidateSize();
                 updateMapMarkers();
             }, 200);
         });
     };
 
     const updateMapMarkers = () => {
-        if (!mapInstance.value) return;
-        if (markers.value) {
-            markers.value.forEach(m => { try { mapInstance.value.removeLayer(m); } catch (e) { } });
+        if (!appState.mapInstance.value) return;
+        if (appState.markers.value) {
+            appState.markers.value.forEach(m => { try { appState.mapInstance.value.removeLayer(m); } catch (e) { } });
         }
-        markers.value = [];
+        appState.markers.value = [];
 
-        if (!filteredItems.value) return;
+        if (!filteredItems.value || !Array.isArray(filteredItems.value)) return;
 
-        filteredItems.value.forEach(item => {
-            const isOwned = item.owned;
-            const bgColor = isOwned ? '#4ade80' : '#ffb7ce';
-            const contentHtml = item.image ? `<img src="${item.image}" style="width:26px; height:26px; object-fit:contain; border-radius:50%;">` : `<div style="font-size:18px;">${item.emoji}</div>`;
-            const customIcon = L.divIcon({ className: 'custom-pin', html: `<div style="background-color: ${bgColor}; width: 36px; height: 36px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><div style="transform: rotate(45deg); display:flex; justify-content:center; align-items:center;">${contentHtml}</div></div>`, iconSize: [36, 36], iconAnchor: [18, 36], popupAnchor: [0, -40] });
+        // 1. 分組 (Grouping by coordinates)
+        const locationGroups = {};
 
+        // 🔥 修改 1：addToGroup 改為儲存物件 {item, index}
+        const addToGroup = (lat, lng, itemData, locName) => {
+            const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+            if (!locationGroups[key]) {
+                locationGroups[key] = { lat, lng, locName, items: [] };
+            }
+            locationGroups[key].items.push(itemData);
+        };
+
+        // 🔥 修改 2：遍歷時同時取得 item 和 originalIndex
+        filteredItems.value.forEach((item, originalIndex) => {
             const airportKeywords = ['空港', 'パイロット', '飛行機', 'CA', 'エアポート'];
             const isAirportItem = airportKeywords.some(kw => item.name.includes(kw));
-            const catLabel = item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : item.category === 'socks' ? '襪子' : '其他';
-
-            const addMarker = (lat, lng, locText) => {
-                const marker = L.marker([lat, lng], { icon: customIcon }).bindPopup(`
-                    <div style="text-align: center;">
-                        <b style="color:#5d4037">${item.name}</b><br>
-                        <span style="font-size:12px; color:#888">${locText}<br>${catLabel}</span><br>
-                        <button onclick="document.getElementById('toggle-btn-${item.id}').click()" style="margin-top:5px; padding:4px 10px; border-radius:12px; border:none; background:${isOwned ? '#eee' : '#ffb7ce'}; color:${isOwned ? '#888' : 'white'}; cursor:pointer;">${isOwned ? '取消收藏' : '加入收藏'}</button>
-                        <button id="toggle-btn-${item.id}" style="display:none"></button>
-                    </div>
-                `);
-                marker.on('popupopen', () => { setTimeout(() => { const btn = document.getElementById(`toggle-btn-${item.id}`); if (btn) btn.onclick = () => { toggleOwn(item); marker.closePopup(); }; }, 0); });
-                marker.addTo(mapInstance.value);
-                markers.value.push(marker);
-            };
 
             if (isAirportItem && item.region === '其他') {
-                MAJOR_AIRPORTS.forEach(airport => addMarker(airport.lat, airport.lng, `📍 ${airport.name}`));
+                MAJOR_AIRPORTS.forEach(airport => {
+                    // 傳入包含 index 的物件
+                    addToGroup(airport.lat, airport.lng, { item, index: originalIndex }, `${airport.name} (全日本機場)`);
+                });
             } else {
-                addMarker(item.lat, item.lng, `📍 ${item.search_location || item.region}`);
+                addToGroup(item.lat, item.lng, { item, index: originalIndex }, item.search_location || item.region);
             }
+        });
+
+        // 2. 繪製 Marker
+        Object.values(locationGroups).forEach(group => {
+            // 注意：現在 group.items 裡面是 {item, index} 的物件
+            const allOwned = group.items.every(wrapper => wrapper.item.owned);
+            const anyOwned = group.items.some(wrapper => wrapper.item.owned);
+
+            let bgColor = '#ffb7ce';
+            if (allOwned) bgColor = '#4ade80';
+            else if (anyOwned) bgColor = '#facc15';
+
+            let contentHtml = '';
+            if (group.items.length === 1) {
+                const item = group.items[0].item;
+                contentHtml = item.image ? `<img src="${item.image}" style="width:26px; height:26px; object-fit:contain; border-radius:50%;">` : `<div style="font-size:18px;">${item.emoji}</div>`;
+            } else {
+                contentHtml = `<div style="font-size:14px; font-weight:bold; color:white;">${group.items.length}</div>`;
+            }
+
+            const customIcon = L.divIcon({
+                className: 'custom-pin',
+                html: `<div style="background-color: ${bgColor}; width: 36px; height: 36px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
+                        <div style="transform: rotate(45deg); display:flex; justify-content:center; align-items:center;">${contentHtml}</div>
+                       </div>`,
+                iconSize: [36, 36], iconAnchor: [18, 36], popupAnchor: [0, -40]
+            });
+
+            const marker = markRaw(L.marker([group.lat, group.lng], { icon: customIcon }));
+
+            // 3. 產生 Popup 內容
+            let popupHtml = `<div style="text-align: center; margin-bottom:5px;"><b>📍 ${group.locName}</b></div>`;
+            popupHtml += `<div class="map-list-container">`;
+
+            // 🔥 修改 3：解構取得 item 和 index，並為圖片添加可點擊的 ID 和樣式
+            group.items.forEach(({ item, index: originalIndex }) => {
+                const isOwned = item.owned;
+                const btnColor = isOwned ? '#eee' : '#ffb7ce';
+                const btnText = isOwned ? '#888' : 'white';
+                const btnLabel = isOwned ? '取消' : '收藏';
+                const imgTag = item.image ? `<img src="${item.image}" class="map-list-img">` : `<span style="font-size:20px; display:inline-block; width:40px; text-align:center;">${item.emoji}</span>`;
+
+                // 產生唯一的 ID 用於綁定點擊事件
+                const imgBtnId = `map-item-img-${item.id}-${group.lat.toFixed(5)}`;
+                const toggleBtnId = `toggle-btn-${item.id}-${group.lat.toFixed(5)}`;
+
+                popupHtml += `
+                    <div class="map-list-item">
+                        <div id="${imgBtnId}" style="cursor:pointer;" title="點擊查看大圖">
+                            ${imgTag}
+                        </div>
+                        <div style="flex:1; text-align:left; overflow:hidden; margin-left: 8px;">
+                            <div style="font-size:12px; font-weight:bold; color:#5d4037; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.name}</div>
+                            <div style="font-size:10px; color:#888;">${item.category}</div>
+                        </div>
+                        <button id="${toggleBtnId}" style="padding:4px 8px; border-radius:6px; border:none; background:${btnColor}; color:${btnText}; font-size:10px; cursor:pointer; white-space:nowrap;">
+                            ${btnLabel}
+                        </button>
+                    </div>
+                `;
+            });
+            popupHtml += `</div>`;
+
+            marker.bindPopup(popupHtml, { maxWidth: 300 });
+
+            // 4. 綁定事件
+            marker.on('popupopen', () => {
+                // 🔥 修改 4：同時綁定圖片點擊和按鈕點擊事件
+                group.items.forEach(({ item, index: originalIndex }) => {
+                    const imgBtnId = `map-item-img-${item.id}-${group.lat.toFixed(5)}`;
+                    const toggleBtnId = `toggle-btn-${item.id}-${group.lat.toFixed(5)}`;
+
+                    setTimeout(() => {
+                        // 綁定圖片點擊 -> 開啟大圖
+                        const imgBtn = document.getElementById(imgBtnId);
+                        if (imgBtn) {
+                            imgBtn.onclick = (e) => {
+                                e.stopPropagation();
+                                openImage(item, originalIndex);
+                            };
+                        }
+
+                        // 綁定按鈕點擊 -> 切換收藏
+                        const toggleBtn = document.getElementById(toggleBtnId);
+                        if (toggleBtn) {
+                            toggleBtn.onclick = (e) => {
+                                e.stopPropagation();
+                                toggleOwn(item);
+                                marker.closePopup();
+                                marker.openPopup();
+                            };
+                        }
+                    }, 0);
+                });
+            });
+
+            marker.addTo(appState.mapInstance.value);
+            appState.markers.value.push(marker);
         });
     };
 
@@ -278,6 +356,8 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
         exportUserData, exportPublicData, downloadJson,
         openImage, closeModal, toggleModalItem, nextImage, prevImage,
         initMap, updateMapMarkers,
-        triggerImportUser, importUserData, triggerImportPublic, importPublicData
+        triggerImportUser, importUserData, triggerImportPublic, importPublicData,
+        categories: [{ key: 'all', label: '全部' }, { key: 'tag', label: '鐵牌' }, { key: 'plush', label: '娃娃' }, { key: 'socks', label: '襪子' }, { key: 'other', label: '其他' }],
+        regions: ['全部', '北海道', '東北', '關東', '中部', '近畿', '中國', '四國', '九州', '沖繩', '海外', '其他']
     };
 }
