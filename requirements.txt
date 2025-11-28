@@ -14,7 +14,9 @@ Flask==3.1.2
 geographiclib==2.1
 geopy==2.4.1
 google-api-core==2.28.1
+google-api-python-client==2.187.0
 google-auth==2.43.0
+google-auth-httplib2==0.2.1
 google-cloud-core==2.5.0
 google-cloud-firestore==2.21.0
 google-cloud-storage==3.6.0
@@ -28,6 +30,7 @@ h11==0.16.0
 h2==4.3.0
 hpack==4.1.0
 httpcore==1.0.9
+httplib2==0.31.0
 httpx==0.28.1
 hyperframe==6.1.0
 idna==3.11
@@ -42,10 +45,12 @@ pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==2.23
 PyJWT==2.10.1
+pyparsing==3.2.5
 requests==2.32.5
 rsa==4.9.1
 sniffio==1.3.1
 soupsieve==2.8
 typing_extensions==4.15.0
+uritemplate==4.2.0
 urllib3==2.5.0
 Werkzeug==3.1.3

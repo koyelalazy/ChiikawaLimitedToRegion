@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -8,7 +9,10 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&display=swap"
+        rel="stylesheet">
+    <script async defer src="https://apis.google.com/js/api.js"></script>
+    <script async defer src="https://accounts.google.com/gsi/client"></script>
 
     <script>
         tailwind.config = {
@@ -27,138 +31,183 @@
         }
     </script>
     <style>
-        body { 
-            background-color: #fff5f7; 
+        body {
+            background-color: #fff5f7;
             color: #5d4037;
             background-image: radial-gradient(#ffb7ce 15%, transparent 16%), radial-gradient(#ffb7ce 15%, transparent 16%);
             background-size: 40px 40px;
             background-position: 0 0, 20px 20px;
             background-attachment: fixed;
         }
-        
+
         .region-scroll-container {
             overflow-x: auto;
             white-space: nowrap;
             -webkit-overflow-scrolling: touch;
             cursor: grab;
         }
-        .region-scroll-container:active { cursor: grabbing; }
 
-        @media (max-width: 768px) {
-            .region-scroll-container::-webkit-scrollbar { display: none; }
-            .region-scroll-container { -ms-overflow-style: none; scrollbar-width: none; }
+        .region-scroll-container:active {
+            cursor: grabbing;
         }
 
-        @media (min-width: 769px) {
-            .region-scroll-container::-webkit-scrollbar { height: 8px; }
-            .region-scroll-container::-webkit-scrollbar-track { background: #fff0f5; border-radius: 4px; }
-            .region-scroll-container::-webkit-scrollbar-thumb { background-color: #ffb7ce; border-radius: 4px; border: 2px solid #fff0f5; }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
         }
 
-        .item-card { transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .item-card:active { transform: scale(0.95); }
-        .item-card:hover { transform: translateY(-3px); }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .item-card {
+            transition: all 0.2s;
+        }
+
+        .item-card:active {
+            transform: scale(0.95);
+        }
 
         .loader {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #ffb7ce;
             border-radius: 50%;
-            width: 20px;
-            height: 20px;
+            width: 16px;
+            height: 16px;
             animation: spin 1s linear infinite;
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
-        .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .fade-enter-active,
+        .fade-leave-active {
+            transition: opacity 0.3s;
+        }
+
+        .fade-enter-from,
+        .fade-leave-to {
+            opacity: 0;
+        }
+
+        .filter-btn {
+            border: 2px solid transparent;
+            outline: none !important;
+            margin: 2px 0px;
+        }
+
+        .filter-btn-active {
+            background-color: #5d4037;
+            color: white;
+            border-color: #5d4037;
+        }
+
+        .filter-btn-inactive {
+            background-color: white;
+            color: #6b7280;
+            border-color: #e5e7eb;
+        }
+
+        .filter-btn-inactive:hover {
+            background-color: #f9fafb;
+        }
+
+        .star-btn {
+            transition: transform 0.2s;
+        }
+
+        .star-btn:active {
+            transform: scale(0.8);
+        }
     </style>
 </head>
+
 <body class="h-screen w-screen overflow-hidden flex flex-col">
 
     {% raw %}
 
-    <div id="app" class="h-full flex flex-col w-full mx-auto relative bg-white/90 backdrop-blur-sm shadow-xl md:max-w-5xl md:h-[95vh] md:my-auto md:rounded-3xl border-4 border-white">
-        
+    <div id="app"
+        class="h-full flex flex-col w-full mx-auto relative bg-white/90 backdrop-blur-sm shadow-xl md:max-w-5xl md:h-[95vh] md:my-auto md:rounded-3xl border-4 border-white">
+
         <header class="p-4 bg-white sticky top-0 z-30 shadow-sm flex flex-col gap-3 md:rounded-t-3xl">
             <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
                 <div class="flex items-center gap-3">
-                    <img 
-                        src="https://www.popdaily.com.tw/shaper/u/202409/f7984971-9f2d-4ccf-963f-7cc7acfec817.png?resize-w=900&resize-h=900&format=webp" 
-                        alt="Chiikawa Logo" 
-                        class="w-14 h-14 object-cover rounded-full border-2 border-chii-pink shadow-sm hidden sm:block"
-                    >
+                    <img src="https://www.popdaily.com.tw/shaper/u/202409/f7984971-9f2d-4ccf-963f-7cc7acfec817.png?resize-w=900&resize-h=900&format=webp"
+                        alt="Logo" class="w-12 h-12 object-cover rounded-full border-2 border-chii-pink shadow-sm">
                     <div>
-                        <h1 class="text-xl font-black text-chii-dark tracking-wider">Chiikawa地區限定圖鑑</h1>
-                        <p class="text-xs text-gray-400 font-bold">地區限定收集紀錄</p>
+                        <h1 class="text-xl font-black text-chii-dark tracking-wider">Chiikawa地區限定</h1>
+                        <p class="text-xs text-gray-400 font-bold">收藏圖鑑</p>
                     </div>
                 </div>
-                
+
                 <div class="flex gap-2 self-end sm:self-auto items-center flex-wrap justify-end">
-                    <a href="https://www.jp-api.com/contents/NOD62/PGE1/" target="_blank" 
-					   class="px-3 py-1.5 rounded-full text-xs font-bold text-white bg-pink-400 hover:bg-pink-500 shadow transition-all flex items-center gap-1 no-underline" 
-					   title="前往官方網站">
-						<span>🌐</span> 官網
-					</a>
-					
-                    <button @click="autoUpdate" :disabled="isUpdating" 
-                        class="px-4 py-1.5 rounded-full text-xs font-bold text-white bg-chii-dark hover:bg-gray-700 shadow transition-all flex items-center gap-2">
-                        <span v-if="!isUpdating">🔄 更新商品</span>
-                        <span v-else class="flex items-center gap-2">
-                            <div class="loader"></div> 爬取中...
-                        </span>
-                    </button>
+                    <a href="https://www.jp-api.com/contents/NOD62/PGE1/" target="_blank"
+                        class="px-3 py-1.5 rounded-full text-xs font-bold text-white bg-pink-400 hover:bg-pink-500 shadow transition-all no-underline">🌐
+                        官網</a>
 
-                    <button @click="fixRegions" :disabled="isUpdating"
-                        class="px-3 py-1.5 rounded-full text-xs font-bold text-white bg-blue-500 hover:bg-blue-600 shadow transition-all flex items-center gap-1" title="依照設定地點重新分類地區">
-                        <span>🌍</span> 更新地區
-                    </button>
-
-                    <button @click="exportData" class="px-3 py-1.5 rounded-full text-xs font-bold text-chii-dark bg-yellow-300 hover:bg-yellow-400 shadow transition-all flex items-center gap-1" title="下載資料">
-                        <span>📤</span> 匯出
-                    </button>
-
-                    <button @click="triggerImport" class="px-3 py-1.5 rounded-full text-xs font-bold text-white bg-green-500 hover:bg-green-600 shadow transition-all flex items-center gap-1" title="上傳資料">
-                        <span>📥</span> 匯入
-                    </button>
-                    <input type="file" id="importFile" @change="importData" class="hidden" accept=".json">
-
-                    <div class="flex gap-1 bg-gray-100 p-1 rounded-full border border-gray-200">
-                        <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'bg-white shadow text-chii-dark' : 'text-gray-400'" class="px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1">
-                            <span>📝</span>
-                        </button>
-                        <button @click="initMap" :class="viewMode === 'map' ? 'bg-white shadow text-chii-dark' : 'text-gray-400'" class="px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1">
-                            <span>🗺️</span>
-                        </button>
+                    <div v-if="isLoggedIn"
+                        class="flex items-center gap-2 bg-green-50 px-2 py-1 rounded-full text-xs text-green-700 font-bold border border-green-200 h-[30px]">
+                        <img v-if="userAvatar" :src="userAvatar" class="w-5 h-5 rounded-full border border-green-300">
+                        <span v-else>👤</span>
+                        <span class="max-w-[80px] truncate">{{ userName }}</span>
                     </div>
+                    <button v-else @click="handleAuthClick"
+                        class="px-3 py-1.5 rounded-full text-xs font-bold text-white bg-blue-500 hover:bg-blue-600 shadow h-[30px]">G
+                        登入</button>
+
+                    <button @click="showSettingsModal = true"
+                        class="px-3 py-1.5 rounded-full text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 shadow h-[30px]">⚙️
+                        設定</button>
                 </div>
             </div>
 
-            <div class="flex flex-col gap-2 bg-chii-bg p-3 rounded-xl border border-pink-100">
-                
-                <div class="flex flex-wrap gap-2 justify-between">
-                    <div class="flex gap-2">
-                        <button v-for="cat in categories" :key="cat.key" 
-                            @click="selectedCategory = cat.key"
-                            :class="selectedCategory === cat.key ? 'bg-chii-dark text-white ring-2 ring-offset-2 ring-chii-dark' : 'bg-white text-gray-500 hover:bg-gray-50'"
-                            class="px-4 py-1.5 rounded-lg text-sm font-bold transition-all border border-gray-200 whitespace-nowrap">
+            <div class="flex flex-col gap-3 bg-chii-bg p-3 rounded-xl border border-pink-100 relative">
+
+                <div class="absolute top-3 right-3 z-10">
+                    <div class="flex bg-white rounded-lg p-0.5 border border-gray-200 shadow-sm">
+                        <button @click="viewMode = 'list'"
+                            :class="viewMode === 'list' ? 'bg-chii-dark text-white' : 'text-gray-400'"
+                            class="px-3 py-1 rounded-md text-xs font-bold transition-all">📝</button>
+                        <button @click="initMap"
+                            :class="viewMode === 'map' ? 'bg-chii-dark text-white' : 'text-gray-400'"
+                            class="px-3 py-1 rounded-md text-xs font-bold transition-all">🗺️</button>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row justify-between items-end gap-2 mt-8 sm:mt-0 sm:pr-24">
+                    <div class="flex gap-2 w-full sm:w-auto overflow-x-auto hide-scrollbar">
+                        <button v-for="cat in categories" :key="cat.key" @click="selectedCategory = cat.key"
+                            class="filter-btn px-4 py-1.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap flex-1 sm:flex-none text-center"
+                            :class="selectedCategory === cat.key ? 'filter-btn-active' : 'filter-btn-inactive'">
                             {{ cat.label }}
                         </button>
                     </div>
 
-                    <div class="flex gap-1 bg-white p-1 rounded-lg border border-gray-200">
-                        <button @click="statusFilter = 'all'" :class="statusFilter === 'all' ? 'bg-chii-pink text-white shadow' : 'text-gray-400'" class="px-3 py-1 rounded text-xs font-bold transition-all">全部</button>
-                        <button @click="statusFilter = 'owned'" :class="statusFilter === 'owned' ? 'bg-green-500 text-white shadow' : 'text-gray-400'" class="px-3 py-1 rounded text-xs font-bold transition-all">已擁有</button>
-                        <button @click="statusFilter = 'not_owned'" :class="statusFilter === 'not_owned' ? 'bg-gray-400 text-white shadow' : 'text-gray-400'" class="px-3 py-1 rounded text-xs font-bold transition-all">未擁有</button>
+                    <div class="flex gap-1 shrink-0">
+                        <button @click="statusFilter = 'all'"
+                            class="filter-btn px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                            :class="statusFilter === 'all' ? 'filter-btn-active' : 'filter-btn-inactive'">全部</button>
+                        <button @click="statusFilter = 'owned'"
+                            class="filter-btn px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                            :class="statusFilter === 'owned' ? 'bg-green-500 text-white' : 'filter-btn-inactive'">已收</button>
+                        <button @click="statusFilter = 'not_owned'"
+                            class="filter-btn px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                            :class="statusFilter === 'not_owned' ? 'bg-gray-400 text-white' : 'filter-btn-inactive'">未收</button>
                     </div>
                 </div>
 
-                <div id="region-scroll-area" class="region-scroll-container flex items-center gap-2 w-full">
-                    <button 
-                        v-for="region in regions" 
-                        :key="region"
-                        @click="selectedRegion = region"
-                        :class="selectedRegion === region ? 'bg-chii-pink text-white shadow-md transform scale-105' : 'bg-white text-gray-500 border border-gray-100'"
-                        class="px-4 py-1.5 rounded-full text-sm flex-shrink-0 transition-all font-bold select-none">
+                <div id="region-scroll-area"
+                    class="region-scroll-container flex items-center gap-2 w-full pt-1 border-t border-pink-100/50">
+                    <button v-for="region in regions" :key="region" @click="selectedRegion = region"
+                        class="filter-btn px-4 py-1.5 rounded-full text-sm flex-shrink-0 transition-all font-bold select-none"
+                        :class="selectedRegion === region ? 'bg-chii-pink text-white shadow-md transform scale-105' : 'filter-btn-inactive'">
                         {{ region }}
                     </button>
                     <div class="w-1 flex-shrink-0"></div>
@@ -167,55 +216,79 @@
         </header>
 
         <main class="flex-1 overflow-y-auto p-4 relative bg-transparent">
+
+            <div v-if="!isLoggedIn"
+                class="text-center mb-2 bg-yellow-50 p-2 rounded text-xs text-yellow-700 border border-yellow-100">⚠️
+                本機模式：資料僅存於此瀏覽器。</div>
+
             <div v-show="viewMode === 'list'">
                 <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 pb-20">
-                    <div 
-                        v-for="(item, index) in filteredItems" 
-                        :key="item.id"
-                        @click="toggleOwn(item)"
+
+                    <div v-for="(item, index) in filteredItems" :key="item.id || index" @click="toggleOwn(item)"
                         class="item-card bg-white rounded-2xl p-3 shadow-sm border-2 relative overflow-hidden cursor-pointer flex flex-col group"
-                        :class="item.owned ? 'border-green-400 bg-green-50' : 'border-white'">
-                        
-                        <div class="absolute top-2 right-2 z-10">
-                            <span v-if="item.owned" class="bg-green-500 text-white text-[10px] px-2 py-1 rounded-full font-bold shadow-sm">GET!</span>
+                        :class="item.owned ? 'border-green-400 bg-green-50' : 'border-white hover:border-pink-200'">
+
+                        <div
+                            class="absolute top-1 left-1 z-20 p-1.5 rounded-full bg-white/70 backdrop-blur shadow-sm pointer-events-none">
+                            <svg v-if="item.owned" xmlns="http://www.w3.org/2000/svg"
+                                class="h-5 w-5 text-yellow-400 drop-shadow-sm" viewBox="0 0 20 20" fill="currentColor">
+                                <path
+                                    d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                            <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.784.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                            </svg>
                         </div>
 
-                        <div class="w-full aspect-square bg-gray-50 rounded-xl mb-3 flex items-center justify-center text-5xl shadow-inner relative overflow-hidden">
-                            <img v-if="item.image" :src="item.image" class="w-full h-full object-contain transition-transform group-hover:scale-105" loading="lazy">
-                            <span v-else class="transform transition-transform group-hover:scale-110 select-none">{{ item.emoji }}</span>
-                            
-                            <button 
-                                v-if="item.image"
-                                @click.stop="openImage(item, index)"
-                                class="absolute bottom-1 left-1 bg-white/80 hover:bg-white text-gray-600 hover:text-chii-dark p-1.5 rounded-full shadow-sm backdrop-blur transition-all z-20"
-                                title="查看大圖"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-                                </svg>
-                            </button>
+                        <div class="absolute top-2 right-2 z-10"><span v-if="item.owned"
+                                class="bg-green-500 text-white text-[10px] px-2 py-1 rounded-full font-bold shadow-sm">GET!</span>
                         </div>
-                        
+
+                        <div
+                            class="w-full aspect-square bg-gray-50 rounded-xl mb-3 flex items-center justify-center text-5xl shadow-inner relative overflow-hidden">
+                            <img v-if="item.image" :src="item.image"
+                                class="w-full h-full object-contain transition-transform group-hover:scale-105"
+                                loading="lazy">
+                            <span v-else class="transform transition-transform group-hover:scale-110 select-none">{{
+                                item.emoji }}</span>
+
+                            <button v-if="item.image" @click.stop="openImage(item, index)"
+                                class="absolute bottom-1 right-1 bg-white/80 hover:bg-white text-gray-600 hover:text-chii-dark p-1.5 rounded-full shadow-sm backdrop-blur transition-all z-20"
+                                title="查看大圖"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                                </svg></button>
+                        </div>
+
                         <div class="flex-1 flex flex-col justify-between">
                             <div>
                                 <div class="flex flex-wrap gap-1 mb-1">
-                                    <span class="text-[10px] bg-chii-pink text-white px-1.5 py-0.5 rounded whitespace-nowrap">{{ item.region }}</span>
-                                    <span class="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded whitespace-nowrap">{{ item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他' }}</span>
-                                    <span v-if="item.search_location" class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded whitespace-nowrap flex items-center" title="手動指定地點">
-                                        📍 {{ item.search_location }}
+                                    <span
+                                        class="text-[10px] bg-chii-pink text-white px-1.5 py-0.5 rounded whitespace-nowrap">{{
+                                        item.region }}</span>
+                                    <span
+                                        class="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                        {{ item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' :
+                                        item.category === 'socks' ? '襪子' : '其他' }}
                                     </span>
+                                    <span v-if="item.search_location"
+                                        class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded whitespace-nowrap flex items-center">📍
+                                        {{ item.search_location }}</span>
                                 </div>
                                 <h3 class="text-sm font-bold text-gray-700 leading-tight">{{ item.name }}</h3>
                             </div>
                         </div>
                     </div>
                 </div>
-                
-                <div v-if="filteredItems.length === 0" class="flex flex-col items-center justify-center py-20 text-gray-400 gap-4">
+
+                <div v-if="filteredItems.length === 0"
+                    class="flex flex-col items-center justify-center py-20 text-gray-400 gap-4">
                     <div v-if="items.length === 0" class="text-center">
                         <div class="text-4xl mb-2">📥</div>
                         <p>資料庫目前是空的</p>
-                        <p class="text-xs">請點擊上方「更新商品」按鈕開始爬蟲</p>
                     </div>
                     <div v-else class="text-center">
                         <div class="text-4xl">🌫️</div>
@@ -223,13 +296,13 @@
                     </div>
                 </div>
             </div>
-
             <div v-show="viewMode === 'map'" class="absolute inset-0 z-0 bg-gray-100 md:rounded-b-2xl overflow-hidden">
                 <div id="map" class="h-full w-full"></div>
             </div>
         </main>
 
-        <footer class="bg-white/95 backdrop-blur border-t border-pink-100 p-4 pb-6 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-20 md:rounded-b-3xl">
+        <footer
+            class="bg-white/95 backdrop-blur border-t border-pink-100 p-4 pb-6 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-20 md:rounded-b-3xl">
             <div class="flex justify-between items-center max-w-2xl mx-auto md:max-w-none">
                 <div class="flex flex-col">
                     <span class="text-xs text-gray-400 font-bold">COLLECTION STATUS</span>
@@ -238,13 +311,12 @@
                         <span class="text-sm text-gray-400 font-bold">/ {{ filteredItems.length }}</span>
                     </div>
                 </div>
-                
                 <div class="flex-1 mx-4 max-w-xs">
                     <div class="h-3 w-full bg-gray-100 rounded-full overflow-hidden shadow-inner">
-                        <div class="h-full bg-gradient-to-r from-green-400 to-green-500 transition-all duration-700 ease-out" :style="{width: progressPercentage + '%'}"></div>
+                        <div class="h-full bg-gradient-to-r from-green-400 to-green-500 transition-all duration-700 ease-out"
+                            :style="{width: progressPercentage + '%'}"></div>
                     </div>
                 </div>
-                
                 <div class="text-green-500 font-black text-lg">{{ Math.round(progressPercentage) }}%</div>
             </div>
         </footer>
@@ -252,419 +324,162 @@
         <transition name="fade">
             <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" @click="closeModal">
                 <div class="absolute inset-0 bg-black/90 backdrop-blur-sm"></div>
-                
-                <div class="relative z-10 w-full max-w-4xl h-full flex flex-col items-center justify-center pointer-events-none">
-                    <div class="bg-white rounded-2xl p-2 md:p-4 shadow-2xl relative flex flex-col max-h-[85vh] w-auto pointer-events-auto" @click.stop>
-                        
-                        <button @click="closeModal" class="absolute -top-4 -right-4 bg-chii-dark text-white rounded-full p-2 shadow-lg hover:bg-gray-800 transition-all z-20 border-2 border-white">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                <div
+                    class="relative z-10 w-full max-w-4xl h-full flex flex-col items-center justify-center pointer-events-none">
+                    <div class="bg-white rounded-2xl p-2 md:p-4 shadow-2xl relative flex flex-col max-h-[85vh] w-auto pointer-events-auto"
+                        @click.stop>
+                        <button @click="closeModal"
+                            class="absolute -top-4 -right-4 bg-chii-dark text-white rounded-full p-2 shadow-lg hover:bg-gray-800 transition-all z-20 border-2 border-white"><svg
+                                xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20"
+                                fill="currentColor">
+                                <path fill-rule="evenodd"
+                                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                    clip-rule="evenodd" />
+                            </svg></button>
+
+                        <button @click.stop="toggleModalItem"
+                            class="star-btn absolute -top-4 -left-4 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100 transition-all z-20 border-2 border-white"
+                            :title="modalItem.owned ? '取消收藏' : '加入收藏'">
+                            <svg v-if="modalItem.owned" xmlns="http://www.w3.org/2000/svg"
+                                class="h-8 w-8 text-yellow-400 drop-shadow-sm" viewBox="0 0 20 20" fill="currentColor">
+                                <path
+                                    d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                            <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-300" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.784.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                             </svg>
                         </button>
 
-                        <div class="flex-1 overflow-auto flex items-center justify-center bg-gray-50 rounded-xl min-w-[300px] min-h-[300px]">
+                        <div
+                            class="flex-1 overflow-auto flex items-center justify-center bg-gray-50 rounded-xl min-w-[300px] min-h-[300px]">
                             <img :src="modalImage" class="max-w-full max-h-[60vh] object-contain" alt="Large view">
                         </div>
-
                         <div class="mt-4 text-center">
                             <h3 class="text-lg font-bold text-chii-dark">{{ modalTitle }}</h3>
                             <p class="text-sm text-gray-500">{{ modalSubtitle }}</p>
                         </div>
                     </div>
-
-                    <button v-if="currentModalIndex > 0" @click.stop="prevImage" class="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white rounded-full p-3 backdrop-blur transition-all pointer-events-auto">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-                    </button>
-                    <button v-if="currentModalIndex < filteredItems.length - 1" @click.stop="nextImage" class="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white rounded-full p-3 backdrop-blur transition-all pointer-events-auto">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-                    </button>
+                    <button v-if="currentModalIndex > 0" @click.stop="prevImage"
+                        class="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white rounded-full p-3 backdrop-blur transition-all pointer-events-auto"><svg
+                            xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg></button>
+                    <button v-if="currentModalIndex < filteredItems.length - 1" @click.stop="nextImage"
+                        class="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white rounded-full p-3 backdrop-blur transition-all pointer-events-auto"><svg
+                            xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg></button>
                 </div>
             </div>
         </transition>
+
+        <div v-if="showSettingsModal" class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showSettingsModal = false"></div>
+            <div class="bg-white rounded-2xl p-6 shadow-2xl z-10 w-full max-w-sm relative">
+                <button @click="showSettingsModal = false"
+                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><svg
+                        xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg></button>
+
+                <h2 class="text-xl font-bold text-chii-dark mb-6 text-center border-b pb-2">設定與功能</h2>
+
+                <div class="mb-6">
+                    <h3 class="text-sm font-bold text-gray-500 mb-2 flex items-center gap-1">☁️ 雲端同步 <span
+                            class="text-[10px] bg-gray-100 text-gray-400 px-1 rounded">Google Drive</span></h3>
+                    <div v-if="isLoggedIn">
+                        <button @click="openPicker"
+                            class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg text-sm mb-2 flex items-center justify-center gap-2">
+                            <span>📂</span> <span class="truncate max-w-[200px]">{{ folderName || '選擇資料夾' }}</span>
+                        </button>
+                        <button @click="logout"
+                            class="w-full border border-red-200 text-red-500 hover:bg-red-50 py-2 rounded-lg text-sm">登出
+                            Google</button>
+                    </div>
+                    <div v-else>
+                        <button @click="handleAuthClick"
+                            class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-sm font-bold shadow-md flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z" />
+                            </svg>
+                            登入 Google Drive
+                        </button>
+                        <p class="text-xs text-gray-400 mt-2 text-center">登入後可跨裝置同步收藏，未登入僅存於本機。</p>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-sm font-bold text-gray-500 mb-2">👤 個人資料管理</h3>
+                    <div class="flex flex-col gap-2">
+                        <div class="grid grid-cols-2 gap-2">
+                            <button @click="exportUserData"
+                                class="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 py-2 rounded-lg text-sm font-bold">📤
+                                備份收藏</button>
+                            <button @click="triggerImportUser"
+                                class="bg-green-100 hover:bg-green-200 text-green-800 py-2 rounded-lg text-sm font-bold">📥
+                                還原收藏</button>
+                            <input type="file" id="importUserFile" @change="importUserData" class="hidden"
+                                accept=".json">
+                        </div>
+                        <button @click="resetSelections"
+                            class="w-full border border-orange-300 text-orange-600 hover:bg-orange-50 py-2 rounded-lg text-sm font-bold">🚫
+                            清除所有勾選</button>
+                    </div>
+                </div>
+
+                <div v-if="isAdmin" class="border-t pt-4 bg-gray-50 -mx-6 px-6 pb-6 -mb-6 rounded-b-2xl">
+                    <h3 class="text-sm font-bold text-purple-600 mb-2 flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        管理員專區
+                    </h3>
+
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <button @click="autoUpdate" :disabled="isUpdating"
+                            class="bg-chii-dark hover:bg-gray-700 text-white py-2 rounded-lg text-sm flex items-center justify-center gap-1">
+                            <span v-if="!isUpdating">🔄 更新商品</span>
+                            <span v-else class="loader scale-50"></span>
+                        </button>
+                        <button @click="fixRegions" :disabled="isUpdating"
+                            class="bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-sm">🌍 修正地區</button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <button @click="exportPublicData"
+                            class="bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 rounded-lg text-sm">📤 匯出
+                            DB</button>
+                        <button @click="triggerImportPublic"
+                            class="bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg text-sm">📥 匯入 DB</button>
+                    </div>
+                    <input type="file" id="importPublicFile" @change="importPublicData" class="hidden" accept=".json">
+
+                    <button @click="deletePublicData"
+                        class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-bold mt-2">⚠️
+                        清除所有商品資訊</button>
+                </div>
+            </div>
+        </div>
 
     </div>
 
     {% endraw %}
 
-    <script>
-        const { createApp, ref, computed, watch, onMounted } = Vue;
-
-        createApp({
-            setup() {
-                const viewMode = ref('list');
-                const selectedRegion = ref('全部');
-                const selectedCategory = ref('all');
-                // 🔥 新增：狀態篩選 (all, owned, not_owned)
-                const statusFilter = ref('all');
-                
-                const mapInstance = ref(null);
-                const markers = ref([]);
-                const items = ref([]);
-                const isUpdating = ref(false);
-
-                const showModal = ref(false);
-                const modalImage = ref('');
-                const modalTitle = ref('');
-                const modalSubtitle = ref('');
-                const currentModalIndex = ref(0);
-
-                const categories = [
-                    { key: 'all', label: '全部' },
-                    { key: 'tag', label: '鐵牌' },
-                    { key: 'plush', label: '娃娃' },
-                    { key: 'other', label: '其他' }
-                ];
-
-                const regions = ['全部', '北海道', '東北', '關東', '中部', '近畿', '中國', '四國', '九州', '沖繩', '海外', '其他'];
-
-                const fetchItems = async () => {
-                    try {
-                        const res = await fetch('/api/items');
-                        items.value = await res.json();
-                    } catch (e) {
-                        console.error("無法連接到後端", e);
-                    }
-                };
-
-                const toggleOwn = async (item) => {
-                    item.owned = !item.owned;
-                    try {
-                        await fetch('/api/toggle_item', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: item.id })
-                        });
-                        if(viewMode.value === 'map') updateMapMarkers();
-                    } catch (e) {
-                        alert("儲存失敗，請確認後端是否開啟");
-                        item.owned = !item.owned;
-                    }
-                };
-
-                const updateModalContent = () => {
-                    const item = filteredItems.value[currentModalIndex.value];
-                    if (item) {
-                        modalImage.value = item.image;
-                        modalTitle.value = item.name;
-                        modalSubtitle.value = `${item.region} | ${item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他'}`;
-                    }
-                };
-
-                const openImage = (item, index) => {
-                    currentModalIndex.value = index;
-                    updateModalContent();
-                    showModal.value = true;
-                };
-
-                const closeModal = () => {
-                    showModal.value = false;
-                };
-
-                const nextImage = () => {
-                    if (currentModalIndex.value < filteredItems.value.length - 1) {
-                        currentModalIndex.value++;
-                        updateModalContent();
-                    }
-                };
-
-                const prevImage = () => {
-                    if (currentModalIndex.value > 0) {
-                        currentModalIndex.value--;
-                        updateModalContent();
-                    }
-                };
-
-                window.addEventListener('keydown', (e) => {
-                    if (!showModal.value) return;
-                    if (e.key === 'ArrowRight') nextImage();
-                    if (e.key === 'ArrowLeft') prevImage();
-                    if (e.key === 'Escape') closeModal();
-                });
-
-                const autoUpdate = async () => {
-                    isUpdating.value = true;
-                    try {
-                        const res = await fetch('/api/refresh', { method: 'POST' });
-                        const result = await res.json();
-                        alert(`更新完成！資料庫現在共有 ${result.total} 筆商品。`);
-                        await fetchItems();
-                    } catch (e) {
-                        alert("更新失敗，請檢查 Python 控制台錯誤訊息");
-                    } finally {
-                        isUpdating.value = false;
-                    }
-                };
-
-                const fixRegions = async () => {
-                    if(!confirm("確定要依照目前設定的地點 (search_location) 重新分類所有商品嗎？\n\n這不會重新爬蟲，只會快速修正資料庫內的分類。")) return;
-                    
-                    isUpdating.value = true;
-                    try {
-                        const res = await fetch('/api/fix_regions', { method: 'POST' });
-                        const result = await res.json();
-                        alert(`修正完成！共更新了 ${result.updated} 筆商品的地區分類。`);
-                        await fetchItems();
-                    } catch (e) {
-                        alert("修正失敗: " + e);
-                    } finally {
-                        isUpdating.value = false;
-                    }
-                };
-
-                const exportData = () => {
-                    const exportItems = items.value.map(item => ({
-                        ...item,
-                        search_location: item.search_location || ""
-                    }));
-                    const dataStr = JSON.stringify(exportItems, null, 2);
-                    const blob = new Blob([dataStr], { type: "application/json" });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.download = "chiikawa_backup.json";
-                    link.click();
-                    URL.revokeObjectURL(url);
-                    alert("備份檔已下載！\n\n【小技巧】\n若要手動修改地點，請在 JSON 裡的商品加上 'search_location' 欄位\n例如: \"search_location\": \"市川市\"\n然後重新匯入即可！");
-                };
-
-                const triggerImport = () => {
-                    document.getElementById('importFile').click();
-                };
-
-                const importData = async (event) => {
-                    const file = event.target.files[0];
-                    if (!file) return;
-
-                    const reader = new FileReader();
-                    reader.onload = async (e) => {
-                        try {
-                            const jsonContent = JSON.parse(e.target.result);
-                            if (!Array.isArray(jsonContent)) {
-                                alert("錯誤：檔案格式不正確 (應為列表)");
-                                return;
-                            }
-                            
-                            const hasSearch = jsonContent.some(i => i.search_location);
-                            let msg = "確定要匯入覆蓋目前的資料嗎？";
-                            if(hasSearch) msg = "偵測到您有指定地點，系統將開始自動查詢座標...\n這可能需要一點時間，請耐心等待。";
-                            
-                            if(!confirm(msg)) return;
-
-                            isUpdating.value = true;
-                            const res = await fetch('/api/import_data', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(jsonContent)
-                            });
-                            
-                            const result = await res.json();
-                            if(result.status === 'success') {
-                                alert(`匯入成功！\n共處理 ${jsonContent.length} 筆資料。\n自動定位了 ${result.geocoded} 個地點。`);
-                                fetchItems();
-                            } else {
-                                alert("匯入失敗: " + result.message);
-                            }
-                        } catch (err) {
-                            console.error(err);
-                            alert("檔案讀取失敗或 JSON 格式錯誤");
-                        } finally {
-                            isUpdating.value = false;
-                            event.target.value = '';
-                        }
-                    };
-                    reader.readAsText(file);
-                };
-
-                const filteredItems = computed(() => {
-                    return items.value.filter(item => {
-                        // 1. 地區篩選
-                        const matchRegion = selectedRegion.value === '全部' || item.region === selectedRegion.value;
-                        // 2. 分類篩選
-                        const matchCategory = selectedCategory.value === 'all' || item.category === selectedCategory.value;
-                        // 🔥 3. 狀態篩選 (新增)
-                        const matchStatus = 
-                            statusFilter.value === 'all' ? true :
-                            statusFilter.value === 'owned' ? item.owned :
-                            !item.owned;
-
-                        return matchRegion && matchCategory && matchStatus;
-                    });
-                });
-
-                const ownedCount = computed(() => filteredItems.value.filter(i => i.owned).length);
-                const progressPercentage = computed(() => {
-                    if (filteredItems.value.length === 0) return 0;
-                    return (ownedCount.value / filteredItems.value.length) * 100;
-                });
-
-                const initMap = () => {
-                    viewMode.value = 'map';
-                    setTimeout(() => {
-                        if (!mapInstance.value) {
-                            mapInstance.value = L.map('map').setView([36.2048, 138.2529], 5);
-                            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png', {
-                                attribution: '©OpenStreetMap',
-                                maxZoom: 18
-                            }).addTo(mapInstance.value);
-                        }
-                        mapInstance.value.invalidateSize();
-                        updateMapMarkers();
-                        
-                        if(markers.value.length > 0) {
-                            const group = new L.featureGroup(markers.value);
-                            mapInstance.value.fitBounds(group.getBounds().pad(0.2));
-                        }
-                    }, 100);
-                };
-				
-				const MAJOR_AIRPORTS = [
-                    { name: "新千歲空港", lat: 42.7934, lng: 141.6923 }, 
-                    { name: "函館空港", lat: 41.7704, lng: 140.8222 }, 
-                    { name: "仙台空港", lat: 38.1398, lng: 140.9169 }, 
-                    { name: "羽田空港", lat: 35.5494, lng: 139.7798 }, 
-                    { name: "成田空港", lat: 35.7720, lng: 140.3929 }, 
-                    { name: "中部國際空港", lat: 34.8584, lng: 136.8053 },
-                    { name: "伊丹空港", lat: 34.7855, lng: 135.4382 }, 
-                    { name: "關西國際空港", lat: 34.4320, lng: 135.2304 }, 
-                    { name: "廣島空港", lat: 34.4398, lng: 132.9195 }, 
-                    { name: "福岡空港", lat: 33.5859, lng: 130.4507 }, 
-                    { name: "鹿兒島空港", lat: 31.8035, lng: 130.7196 }, 
-                    { name: "那霸空港", lat: 26.2048, lng: 127.6458 }
-                ];
-
-                const updateMapMarkers = () => {
-                    if (!mapInstance.value) return;
-                    
-                    markers.value.forEach(m => mapInstance.value.removeLayer(m));
-                    markers.value = [];
-
-                    filteredItems.value.forEach(item => {
-                        const isOwned = item.owned;
-                        const bgColor = isOwned ? '#4ade80' : '#ffb7ce';
-                        
-                        const contentHtml = item.image 
-                            ? `<img src="${item.image}" style="width:26px; height:26px; object-fit:contain; border-radius:50%;">`
-                            : `<div style="font-size:18px;">${item.emoji}</div>`;
-
-                        const customIcon = L.divIcon({
-                            className: 'custom-pin',
-                            html: `
-                                <div style="
-                                    background-color: ${bgColor};
-                                    width: 36px; height: 36px;
-                                    border-radius: 50% 50% 50% 0;
-                                    transform: rotate(-45deg);
-                                    border: 3px solid white;
-                                    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-                                    display: flex; align-items: center; justify-content: center;
-                                ">
-                                    <div style="transform: rotate(45deg); display:flex; justify-content:center; align-items:center;">
-                                        ${contentHtml}
-                                    </div>
-                                </div>
-                            `,
-                            iconSize: [36, 36],
-                            iconAnchor: [18, 36],
-                            popupAnchor: [0, -40]
-                        });
-
-                        const airportKeywords = ['空港', 'パイロット', '飛行機', 'CA', 'エアポート'];
-                        const isAirportItem = airportKeywords.some(kw => item.name.includes(kw));
-
-                        if (isAirportItem && !item.search_location) {
-                            MAJOR_AIRPORTS.forEach(airport => {
-                                const marker = L.marker([airport.lat, airport.lng], {icon: customIcon})
-                                    .bindPopup(`
-                                        <div style="text-align: center;">
-                                            <b style="color:#5d4037">${item.name}</b><br>
-                                            <span style="font-size:12px; color:#888">
-                                                📍 ${airport.name} (全日本機場限定)<br>
-                                                ${item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他'}
-                                            </span>
-                                            <br>
-                                            <button onclick="document.getElementById('toggle-btn-${item.id}').click()" 
-                                                    style="margin-top:5px; padding:4px 10px; border-radius:12px; border:none; background:${isOwned?'#eee':'#ffb7ce'}; color:${isOwned?'#888':'white'}; cursor:pointer;">
-                                                ${isOwned ? '取消收藏' : '加入收藏'}
-                                            </button>
-                                            <button id="toggle-btn-${item.id}" style="display:none"></button>
-                                        </div>
-                                    `);
-                                marker.on('popupopen', () => {
-                                    setTimeout(() => {
-                                        const btn = document.getElementById(`toggle-btn-${item.id}`);
-                                        if(btn) {
-                                            btn.onclick = () => {
-                                                toggleOwn(item);
-                                                marker.closePopup();
-                                            };
-                                        }
-                                    }, 0);
-                                });
-                                marker.addTo(mapInstance.value);
-                                markers.value.push(marker);
-                            });
-                        } else {
-                            const catLabel = item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : '其他';
-                            const marker = L.marker([item.lat, item.lng], {icon: customIcon})
-                                .bindPopup(`
-                                    <div style="text-align: center;">
-                                        <b style="color:#5d4037">${item.name}</b><br>
-                                        <span style="font-size:12px; color:#888">${item.region} | ${catLabel}</span>
-                                        <br>
-                                        <button onclick="document.getElementById('toggle-btn-${item.id}').click()" 
-                                                style="margin-top:5px; padding:4px 10px; border-radius:12px; border:none; background:${isOwned?'#eee':'#ffb7ce'}; color:${isOwned?'#888':'white'}; cursor:pointer;">
-                                            ${isOwned ? '取消收藏' : '加入收藏'}
-                                        </button>
-                                        <button id="toggle-btn-${item.id}" style="display:none"></button>
-                                    </div>
-                                `);
-                            marker.on('popupopen', () => {
-                                setTimeout(() => {
-                                    const btn = document.getElementById(`toggle-btn-${item.id}`);
-                                    if(btn) {
-                                        btn.onclick = () => {
-                                            toggleOwn(item);
-                                            marker.closePopup();
-                                        };
-                                    }
-                                }, 0);
-                            });
-                            marker.addTo(mapInstance.value);
-                            markers.value.push(marker);
-                        }
-                    });
-                };
-
-                watch([selectedRegion, selectedCategory, statusFilter], () => {
-                    if (viewMode.value === 'map') {
-                        initMap();
-                    }
-                });
-
-                onMounted(() => {
-                    fetchItems();
-                    const scrollContainer = document.getElementById('region-scroll-area');
-                    if (scrollContainer) {
-                        scrollContainer.addEventListener('wheel', (evt) => {
-                            if (evt.deltaY !== 0 && window.innerWidth > 768) {
-                                evt.preventDefault();
-                                scrollContainer.scrollLeft += evt.deltaY;
-                            }
-                        });
-                    }
-                });
-
-                return {
-                    viewMode, regions, categories, selectedRegion, selectedCategory,
-                    statusFilter, // 🔥 回傳這個新變數
-                    filteredItems, toggleOwn, ownedCount, progressPercentage, initMap,
-                    items, autoUpdate, isUpdating,
-                    showModal, modalImage, modalTitle, modalSubtitle, currentModalIndex,
-                    openImage, closeModal, nextImage, prevImage,
-                    exportData, triggerImport, importData, fixRegions
-                };
-            }
-        }).mount('#app');
-    </script>
+    <script src="/static/js/config.js"></script>
+    <script type="module" src="/static/js/storage.js"></script>
+    <script type="module" src="/static/js/ui.js"></script>
+    <script type="module" src="/static/js/main.js"></script>
 </body>
+
 </html>
