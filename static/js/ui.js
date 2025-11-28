@@ -1,9 +1,7 @@
-// static/js/ui.js
-
 export function setupUI(appState, AppConfig, storageFunctions, Vue) {
     const { ref, computed, watch, nextTick } = Vue;
 
-    // --- API 呼叫 ---
+    // --- 輔助：API 呼叫 ---
     const apiCall = async (url, method = 'GET', body = null) => {
         const headers = { 'Content-Type': 'application/json' };
         const config = { method, headers };
@@ -23,20 +21,28 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
         }
     };
 
+    // --- 核心：資料合併 ---
     const mergeData = () => {
         if (!appState.publicItems.value || !Array.isArray(appState.publicItems.value)) {
             appState.items.value = [];
             return;
         }
         appState.items.value = appState.publicItems.value.map(pItem => {
+            // Key 優先順序: 圖片檔名 > 名稱
             const key = pItem.image ? pItem.image.split('/').pop() : pItem.name;
             const uStat = appState.userStatus.value[key] || {};
+
             return {
                 ...pItem,
                 owned: uStat.owned || false,
+                // search_location 由公有資料庫決定，若使用者有特殊覆蓋可在此邏輯擴充
             };
         });
-        if (appState.viewMode.value === 'map') updateMapMarkers();
+        // 如果在地圖模式，更新標記
+        if (appState.viewMode.value === 'map') {
+            // 使用 nextTick 確保資料更新後才重繪
+            nextTick(() => updateMapMarkers());
+        }
     };
 
     // --- 讀取公有商品 ---
@@ -49,7 +55,7 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
         } catch (e) { console.error(e); }
     };
 
-    // --- Computed ---
+    // --- Computed Properties ---
     const filteredItems = computed(() => {
         if (!appState.items.value || !Array.isArray(appState.items.value)) return [];
         return appState.items.value.filter(item => {
@@ -66,24 +72,24 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
         return (ownedCount.value / appState.items.value.length) * 100;
     });
 
-    // --- 操作 ---
+    // --- 事件處理 ---
     let saveTimeout = null;
     const toggleOwn = (item) => {
         item.owned = !item.owned;
         const key = item.image ? item.image.split('/').pop() : item.name;
         if (!appState.userStatus.value[key]) appState.userStatus.value[key] = {};
         appState.userStatus.value[key].owned = item.owned;
+
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => { storageFunctions.saveUserData(); }, 1000);
     };
 
-    // --- Admin ---
     const autoUpdate = async () => {
         appState.isUpdating.value = true;
         try {
             const res = await apiCall('/api/refresh', 'POST', appState.items.value);
             appState.publicItems.value = res.data; // 更新公有資料
-            mergeData(); // 重新合併
+            mergeData();
             alert(`更新完成！共 ${res.total} 筆商品。`);
         } catch (e) { /* apiCall 已處理 alert */ }
         finally { appState.isUpdating.value = false; }
@@ -144,7 +150,7 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
                 const jsonContent = JSON.parse(e.target.result);
                 if (!confirm("確定要還原收藏紀錄嗎？")) return;
                 appState.userStatus.value = jsonContent;
-                mergeData();
+                // mergeData 會由 main.js 的 watcher 觸發
                 storageFunctions.saveUserData();
                 alert("還原成功！");
             } catch (err) { alert("格式錯誤"); }
@@ -174,11 +180,11 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
     const resetSelections = () => {
         if (!confirm("確定要清除所有勾選？")) return;
         appState.userStatus.value = {};
-        mergeData();
+        // mergeData 由 watcher 觸發
         storageFunctions.saveUserData();
     };
 
-    // --- Modal ---
+    // --- Map & Modal ---
     const toggleModalItem = () => { if (appState.modalItem.value) toggleOwn(appState.modalItem.value); };
     const updateModalContent = () => {
         if (!filteredItems.value.length) return;
@@ -186,7 +192,7 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
         if (item) {
             appState.modalImage.value = item.image;
             appState.modalTitle.value = item.name;
-            appState.modalSubtitle.value = `${item.region} | ${item.category}`;
+            appState.modalSubtitle.value = `${item.region} | ${item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : item.category === 'socks' ? '襪子' : '其他'}`;
             appState.modalItem.value = item;
         }
     };
@@ -195,7 +201,7 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
     const nextImage = () => { if (appState.currentModalIndex.value < filteredItems.value.length - 1) { appState.currentModalIndex.value++; updateModalContent(); } };
     const prevImage = () => { if (appState.currentModalIndex.value > 0) { appState.currentModalIndex.value--; updateModalContent(); } };
 
-    // --- Map ---
+    // Map Data
     const MAJOR_AIRPORTS = [
         { name: "新千歲空港", lat: 42.7934, lng: 141.6923 }, { name: "函館空港", lat: 41.7704, lng: 140.8222 },
         { name: "仙台空港", lat: 38.1398, lng: 140.9169 }, { name: "羽田空港", lat: 35.5494, lng: 139.7798 },
@@ -205,22 +211,33 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
         { name: "鹿兒島空港", lat: 31.8035, lng: 130.7196 }, { name: "那霸空港", lat: 26.2048, lng: 127.6458 }
     ];
 
+    const mapInstance = ref(null);
+    const markers = ref([]);
+
     const initMap = () => {
         appState.viewMode.value = 'map';
-        setTimeout(() => {
-            if (!appState.mapInstance.value) {
-                appState.mapInstance.value = L.map('map').setView([36.2048, 138.2529], 5);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png', { attribution: '©OpenStreetMap', maxZoom: 18 }).addTo(appState.mapInstance.value);
+        nextTick(() => {
+            const mapContainer = document.getElementById('map');
+            if (!mapContainer) return;
+
+            if (!mapInstance.value) {
+                mapInstance.value = L.map('map').setView([36.2048, 138.2529], 5);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png', { attribution: '©OpenStreetMap', maxZoom: 18 }).addTo(mapInstance.value);
             }
-            appState.mapInstance.value.invalidateSize();
-            updateMapMarkers();
-        }, 100);
+            setTimeout(() => {
+                mapInstance.value.invalidateSize();
+                updateMapMarkers();
+            }, 200);
+        });
     };
 
     const updateMapMarkers = () => {
-        if (!appState.mapInstance.value) return;
-        appState.markers.value.forEach(m => appState.mapInstance.value.removeLayer(m));
-        appState.markers.value = [];
+        if (!mapInstance.value) return;
+        if (markers.value) {
+            markers.value.forEach(m => { try { mapInstance.value.removeLayer(m); } catch (e) { } });
+        }
+        markers.value = [];
+
         if (!filteredItems.value) return;
 
         filteredItems.value.forEach(item => {
@@ -233,16 +250,24 @@ export function setupUI(appState, AppConfig, storageFunctions, Vue) {
             const isAirportItem = airportKeywords.some(kw => item.name.includes(kw));
             const catLabel = item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' : item.category === 'socks' ? '襪子' : '其他';
 
+            const addMarker = (lat, lng, locText) => {
+                const marker = L.marker([lat, lng], { icon: customIcon }).bindPopup(`
+                    <div style="text-align: center;">
+                        <b style="color:#5d4037">${item.name}</b><br>
+                        <span style="font-size:12px; color:#888">${locText}<br>${catLabel}</span><br>
+                        <button onclick="document.getElementById('toggle-btn-${item.id}').click()" style="margin-top:5px; padding:4px 10px; border-radius:12px; border:none; background:${isOwned ? '#eee' : '#ffb7ce'}; color:${isOwned ? '#888' : 'white'}; cursor:pointer;">${isOwned ? '取消收藏' : '加入收藏'}</button>
+                        <button id="toggle-btn-${item.id}" style="display:none"></button>
+                    </div>
+                `);
+                marker.on('popupopen', () => { setTimeout(() => { const btn = document.getElementById(`toggle-btn-${item.id}`); if (btn) btn.onclick = () => { toggleOwn(item); marker.closePopup(); }; }, 0); });
+                marker.addTo(mapInstance.value);
+                markers.value.push(marker);
+            };
+
             if (isAirportItem && item.region === '其他') {
-                MAJOR_AIRPORTS.forEach(airport => {
-                    const marker = L.marker([airport.lat, airport.lng], { icon: customIcon }).bindPopup(`<div style="text-align: center;"><b style="color:#5d4037">${item.name}</b><br><span style="font-size:12px; color:#888">📍 ${airport.name}<br>${catLabel}</span><br><button onclick="document.getElementById('toggle-btn-${item.id}').click()" style="margin-top:5px; padding:4px 10px; border-radius:12px; border:none; background:${isOwned ? '#eee' : '#ffb7ce'}; color:${isOwned ? '#888' : 'white'}; cursor:pointer;">${isOwned ? '取消收藏' : '加入收藏'}</button><button id="toggle-btn-${item.id}" style="display:none"></button></div>`);
-                    marker.on('popupopen', () => { setTimeout(() => { const btn = document.getElementById(`toggle-btn-${item.id}`); if (btn) { btn.onclick = () => { toggleOwn(item); marker.closePopup(); }; } }, 0); });
-                    marker.addTo(appState.mapInstance.value); appState.markers.value.push(marker);
-                });
+                MAJOR_AIRPORTS.forEach(airport => addMarker(airport.lat, airport.lng, `📍 ${airport.name}`));
             } else {
-                const marker = L.marker([item.lat, item.lng], { icon: customIcon }).bindPopup(`<div style="text-align: center;"><b style="color:#5d4037">${item.name}</b><br><span style="font-size:12px; color:#888">${item.region} | ${catLabel}</span><br><button onclick="document.getElementById('toggle-btn-${item.id}').click()" style="margin-top:5px; padding:4px 10px; border-radius:12px; border:none; background:${isOwned ? '#eee' : '#ffb7ce'}; color:${isOwned ? '#888' : 'white'}; cursor:pointer;">${isOwned ? '取消收藏' : '加入收藏'}</button><button id="toggle-btn-${item.id}" style="display:none"></button></div>`);
-                marker.on('popupopen', () => { setTimeout(() => { const btn = document.getElementById(`toggle-btn-${item.id}`); if (btn) { btn.onclick = () => { toggleOwn(item); marker.closePopup(); }; } }, 0); });
-                marker.addTo(appState.mapInstance.value); appState.markers.value.push(marker);
+                addMarker(item.lat, item.lng, `📍 ${item.search_location || item.region}`);
             }
         });
     };

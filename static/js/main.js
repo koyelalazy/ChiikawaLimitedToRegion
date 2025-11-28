@@ -38,10 +38,7 @@ createApp({
         const storage = setupStorage(appState, AppConfig);
         const ui = setupUI(appState, AppConfig, storage, Vue);
 
-        // 定義 tokenClient 變數
         let tokenClient;
-
-        // 🔥 修正 1: 在這裡直接定義 handleAuthClick，而不是在 onGisLoad 裡才定義
         const handleAuthClick = () => {
             if (tokenClient) {
                 tokenClient.requestAccessToken({ prompt: 'consent' });
@@ -50,20 +47,38 @@ createApp({
             }
         };
 
-        const onGapiLoad = () => { gapi.load('client:picker', async () => { await gapi.client.init({ apiKey: API_KEY, discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] }); }); };
+        const onGapiLoad = () => {
+            gapi.load('client:picker', async () => {
+                await gapi.client.init({ apiKey: API_KEY, discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
+
+                // 🔥 自動登入邏輯
+                const savedToken = storage.loadGoogleToken();
+                if (savedToken) {
+                    console.log("發現有效 Token，自動登入中...");
+                    gapi.client.setToken(savedToken);
+                    appState.isLoggedIn.value = true;
+                    storage.fetchUserProfile(savedToken.access_token);
+                    if (appState.folderId.value) {
+                        storage.loadFromDrive();
+                    }
+                }
+            });
+        };
 
         const onGisLoad = () => {
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID, scope: SCOPES,
                 callback: async (resp) => {
                     if (resp.error !== undefined) throw (resp);
+
+                    storage.saveGoogleToken(resp);
+
                     appState.isLoggedIn.value = true;
                     storage.fetchUserProfile(resp.access_token);
                     if (!appState.folderId.value) ui.openPicker();
                     else storage.loadFromDrive();
                 },
             });
-            // 移除原本這裡的 ui.handleAuthClick = ...
         };
 
         ui.openPicker = () => {
@@ -87,6 +102,14 @@ createApp({
         const regions = ['全部', '北海道', '東北', '關東', '中部', '近畿', '中國', '四國', '九州', '沖繩', '海外', '其他'];
 
         watch([appState.selectedRegion, appState.selectedCategory, appState.statusFilter], () => { if (appState.viewMode.value === 'map') ui.initMap(); });
+        watch(
+            () => appState.userStatus.value,
+            (newVal) => {
+                console.log("使用者資料已更新，重新合併畫面...");
+                ui.mergeData();
+            },
+            { deep: true }
+        );
 
         onMounted(() => {
             const script1 = document.createElement('script'); script1.src = "https://apis.google.com/js/api.js"; script1.onload = onGapiLoad; document.body.appendChild(script1);
@@ -116,7 +139,6 @@ createApp({
             ...storage,
             categories, regions,
             openSettings, saveSettings,
-            // 🔥 修正 2: 明確回傳 handleAuthClick
             handleAuthClick
         };
     }

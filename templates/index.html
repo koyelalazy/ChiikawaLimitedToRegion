@@ -98,25 +98,20 @@
         }
 
         .filter-btn {
-            border: 2px solid transparent;
+            border: 0;
             outline: none !important;
-            margin: 2px 0px;
+            margin: 2px 2px 6px 2px;
         }
 
         .filter-btn-active {
             background-color: #5d4037;
             color: white;
-            border-color: #5d4037;
         }
 
         .filter-btn-inactive {
             background-color: white;
             color: #6b7280;
-            border-color: #e5e7eb;
-        }
-
-        .filter-btn-inactive:hover {
-            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
         }
 
         .star-btn {
@@ -151,7 +146,6 @@
                     <a href="https://www.jp-api.com/contents/NOD62/PGE1/" target="_blank"
                         class="px-3 py-1.5 rounded-full text-xs font-bold text-white bg-pink-400 hover:bg-pink-500 shadow transition-all no-underline">🌐
                         官網</a>
-
                     <div v-if="isLoggedIn"
                         class="flex items-center gap-2 bg-green-50 px-2 py-1 rounded-full text-xs text-green-700 font-bold border border-green-200 h-[30px]">
                         <img v-if="userAvatar" :src="userAvatar" class="w-5 h-5 rounded-full border border-green-300">
@@ -161,45 +155,48 @@
                     <button v-else @click="handleAuthClick"
                         class="px-3 py-1.5 rounded-full text-xs font-bold text-white bg-blue-500 hover:bg-blue-600 shadow h-[30px]">G
                         登入</button>
-
                     <button @click="showSettingsModal = true"
                         class="px-3 py-1.5 rounded-full text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 shadow h-[30px]">⚙️
                         設定</button>
                 </div>
             </div>
 
-            <div class="flex flex-col gap-3 bg-chii-bg p-3 rounded-xl border border-pink-100 relative">
+            <div class="flex flex-col gap-3 bg-chii-bg p-3 rounded-xl border border-pink-100">
 
-                <div class="absolute top-3 right-3 z-10">
-                    <div class="flex bg-white rounded-lg p-0.5 border border-gray-200 shadow-sm">
-                        <button @click="viewMode = 'list'"
-                            :class="viewMode === 'list' ? 'bg-chii-dark text-white' : 'text-gray-400'"
-                            class="px-3 py-1 rounded-md text-xs font-bold transition-all">📝</button>
-                        <button @click="initMap"
-                            :class="viewMode === 'map' ? 'bg-chii-dark text-white' : 'text-gray-400'"
-                            class="px-3 py-1 rounded-md text-xs font-bold transition-all">🗺️</button>
-                    </div>
-                </div>
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-2">
 
-                <div class="flex flex-col sm:flex-row justify-between items-end gap-2 mt-8 sm:mt-0 sm:pr-24">
-                    <div class="flex gap-2 w-full sm:w-auto overflow-x-auto hide-scrollbar">
+                    <div class="flex gap-2 w-full lg:w-auto overflow-x-auto hide-scrollbar">
                         <button v-for="cat in categories" :key="cat.key" @click="selectedCategory = cat.key"
                             class="filter-btn px-4 py-1.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap flex-1 sm:flex-none text-center"
-                            :class="selectedCategory === cat.key ? 'filter-btn-active' : 'filter-btn-inactive'">
-                            {{ cat.label }}
-                        </button>
+                            :class="selectedCategory === cat.key ? 'filter-btn-active' : 'filter-btn-inactive'">{{
+                            cat.label }}</button>
                     </div>
 
-                    <div class="flex gap-1 shrink-0">
-                        <button @click="statusFilter = 'all'"
-                            class="filter-btn px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                            :class="statusFilter === 'all' ? 'filter-btn-active' : 'filter-btn-inactive'">全部</button>
-                        <button @click="statusFilter = 'owned'"
-                            class="filter-btn px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                            :class="statusFilter === 'owned' ? 'bg-green-500 text-white' : 'filter-btn-inactive'">已收</button>
-                        <button @click="statusFilter = 'not_owned'"
-                            class="filter-btn px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                            :class="statusFilter === 'not_owned' ? 'bg-gray-400 text-white' : 'filter-btn-inactive'">未收</button>
+                    <div class="flex gap-2 items-center self-end lg:self-auto flex-wrap justify-end">
+
+                        <div
+                            class="flex bg-white rounded-lg p-0.5 border border-gray-200 shadow-sm h-[32px] items-center">
+                            <button @click="statusFilter = 'all'"
+                                :class="statusFilter === 'all' ? 'bg-chii-dark text-white' : 'text-gray-400'"
+                                class="px-3 h-full rounded-md text-xs font-bold transition-all flex items-center">全部</button>
+                            <button @click="statusFilter = 'owned'"
+                                :class="statusFilter === 'owned' ? 'bg-chii-dark text-white' : 'text-gray-400'"
+                                class="px-3 h-full rounded-md text-xs font-bold transition-all flex items-center">已收</button>
+                            <button @click="statusFilter = 'not_owned'"
+                                :class="statusFilter === 'not_owned' ? 'bg-chii-dark text-white' : 'text-gray-400'"
+                                class="px-3 h-full rounded-md text-xs font-bold transition-all flex items-center">未收</button>
+                        </div>
+
+                        <div
+                            class="flex bg-white rounded-lg p-0.5 border border-gray-200 shadow-sm h-[32px] items-center">
+                            <button @click="viewMode = 'list'"
+                                :class="viewMode === 'list' ? 'bg-chii-dark text-white' : 'text-gray-400'"
+                                class="px-3 h-full rounded-md text-xs font-bold transition-all flex items-center">📝</button>
+                            <button @click="initMap"
+                                :class="viewMode === 'map' ? 'bg-chii-dark text-white' : 'text-gray-400'"
+                                class="px-3 h-full rounded-md text-xs font-bold transition-all flex items-center">🗺️</button>
+                        </div>
+
                     </div>
                 </div>
 
@@ -207,16 +204,14 @@
                     class="region-scroll-container flex items-center gap-2 w-full pt-1 border-t border-pink-100/50">
                     <button v-for="region in regions" :key="region" @click="selectedRegion = region"
                         class="filter-btn px-4 py-1.5 rounded-full text-sm flex-shrink-0 transition-all font-bold select-none"
-                        :class="selectedRegion === region ? 'bg-chii-pink text-white shadow-md transform scale-105' : 'filter-btn-inactive'">
-                        {{ region }}
-                    </button>
+                        :class="selectedRegion === region ? 'bg-chii-pink text-white shadow-md transform scale-105' : 'filter-btn-inactive'">{{
+                        region }}</button>
                     <div class="w-1 flex-shrink-0"></div>
                 </div>
             </div>
         </header>
 
         <main class="flex-1 overflow-y-auto p-4 relative bg-transparent">
-
             <div v-if="!isLoggedIn"
                 class="text-center mb-2 bg-yellow-50 p-2 rounded text-xs text-yellow-700 border border-yellow-100">⚠️
                 本機模式：資料僅存於此瀏覽器。</div>
@@ -253,7 +248,6 @@
                                 loading="lazy">
                             <span v-else class="transform transition-transform group-hover:scale-110 select-none">{{
                                 item.emoji }}</span>
-
                             <button v-if="item.image" @click.stop="openImage(item, index)"
                                 class="absolute bottom-1 right-1 bg-white/80 hover:bg-white text-gray-600 hover:text-chii-dark p-1.5 rounded-full shadow-sm backdrop-blur transition-all z-20"
                                 title="查看大圖"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
@@ -270,10 +264,9 @@
                                         class="text-[10px] bg-chii-pink text-white px-1.5 py-0.5 rounded whitespace-nowrap">{{
                                         item.region }}</span>
                                     <span
-                                        class="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded whitespace-nowrap">
-                                        {{ item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' :
-                                        item.category === 'socks' ? '襪子' : '其他' }}
-                                    </span>
+                                        class="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded whitespace-nowrap">{{
+                                        item.category === 'tag' ? '鐵牌' : item.category === 'plush' ? '娃娃' :
+                                        item.category === 'socks' ? '襪子' : '其他' }}</span>
                                     <span v-if="item.search_location"
                                         class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded whitespace-nowrap flex items-center">📍
                                         {{ item.search_location }}</span>
@@ -387,7 +380,6 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M6 18L18 6M6 6l12 12" />
                     </svg></button>
-
                 <h2 class="text-xl font-bold text-chii-dark mb-6 text-center border-b pb-2">設定與功能</h2>
 
                 <div class="mb-6">
@@ -448,10 +440,8 @@
 
                     <div class="grid grid-cols-2 gap-2 mb-2">
                         <button @click="autoUpdate" :disabled="isUpdating"
-                            class="bg-chii-dark hover:bg-gray-700 text-white py-2 rounded-lg text-sm flex items-center justify-center gap-1">
-                            <span v-if="!isUpdating">🔄 更新商品</span>
-                            <span v-else class="loader scale-50"></span>
-                        </button>
+                            class="bg-chii-dark hover:bg-gray-700 text-white py-2 rounded-lg text-sm flex items-center justify-center gap-1"><span
+                                v-if="!isUpdating">🔄 更新商品</span><span v-else class="loader scale-50"></span></button>
                         <button @click="fixRegions" :disabled="isUpdating"
                             class="bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-sm">🌍 修正地區</button>
                     </div>

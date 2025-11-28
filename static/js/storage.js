@@ -5,6 +5,34 @@ const DB_FILENAME = 'chiikawa_items.json';
 export function setupStorage(appState, AppConfig) {
     const { CLIENT_ID, API_KEY, SCOPES, ADMIN_EMAIL } = AppConfig;
 
+    // --- 🔥 新增：Token 管理邏輯 ---
+    const saveGoogleToken = (tokenResponse) => {
+        const now = new Date().getTime();
+        // 預設 expire_in 是秒，轉毫秒，並提早 1 分鐘視為過期以策安全
+        const expiry = now + (tokenResponse.expires_in * 1000) - 60000;
+        const sessionData = {
+            token: tokenResponse,
+            expiry: expiry
+        };
+        localStorage.setItem('google_access_token', JSON.stringify(sessionData));
+    };
+
+    const loadGoogleToken = () => {
+        const saved = localStorage.getItem('google_access_token');
+        if (!saved) return null;
+        try {
+            const sessionData = JSON.parse(saved);
+            const now = new Date().getTime();
+            if (now < sessionData.expiry) {
+                return sessionData.token;
+            } else {
+                // 過期了
+                localStorage.removeItem('google_access_token');
+                return null;
+            }
+        } catch (e) { return null; }
+    };
+
     const fetchUserProfile = async (accessToken) => {
         try {
             const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${accessToken}` } });
@@ -32,8 +60,6 @@ export function setupStorage(appState, AppConfig) {
             } else {
                 appState.userStatus.value = {};
             }
-            // 這裡不直接呼叫 mergeData，而是由 main.js 的 watcher 或 fetchPublicItems 後處理
-            // 但如果需要立刻更新畫面，可以回傳 Promise 讓外部處理
         } catch (e) { console.error(e); }
     };
 
@@ -52,26 +78,32 @@ export function setupStorage(appState, AppConfig) {
             form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
             form.append('file', new Blob([content], { type: 'application/json' }));
 
+            const accessToken = gapi.client.getToken().access_token;
+
             if (files && files.length > 0) {
+                // --- 更新現有檔案 (PATCH) ---
                 const fileId = files[0].id;
-                await gapi.client.request({
-                    path: `/upload/drive/v3/files/${fileId}`,
+                const updateRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
                     method: 'PATCH',
-                    params: { uploadType: 'multipart' },
+                    headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
                     body: form
                 });
+                if (!updateRes.ok) throw new Error("Update failed");
             } else {
+                // --- 建立新檔案 (POST) ---
                 metadata.parents = [folderId];
                 const newForm = new FormData();
                 newForm.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
                 newForm.append('file', new Blob([content], { type: 'application/json' }));
 
-                await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                const createRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
                     method: 'POST',
-                    headers: new Headers({ 'Authorization': 'Bearer ' + gapi.client.getToken().access_token }),
+                    headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
                     body: newForm
                 });
+                if (!createRes.ok) throw new Error("Create failed");
             }
+            console.log("✅ 雲端存檔成功");
         } catch (e) { console.error("存檔失敗", e); }
     };
 
@@ -91,9 +123,9 @@ export function setupStorage(appState, AppConfig) {
         appState.userStatus.value = {};
         localStorage.removeItem('drive_folder_id');
         localStorage.removeItem('drive_folder_name');
+        localStorage.removeItem('google_access_token');
         alert('已登出');
         loadFromLocal();
-        // 這裡需要通知 main.js 重新合併，可以透過回傳 callback 或直接操作 appState (如果傳入的是 ref)
     };
 
     const saveUserData = () => {
@@ -109,6 +141,8 @@ export function setupStorage(appState, AppConfig) {
         loadFromLocal,
         saveToLocal,
         logout,
-        saveUserData
+        saveUserData,
+        saveGoogleToken,
+        loadGoogleToken
     };
 }
